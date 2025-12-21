@@ -1,49 +1,73 @@
 'use client';
 
 import { useContent } from '@/context/ContentContext';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
-  const { contactInfo, templeHistory, about, timings, sevaSection } = useContent();
+  const { contactInfo, templeHistory, about, timings, sevaSection, templeBoxes, books, songs, photos, heroPhotos } = useContent();
   const [activeTab, setActiveTab] = useState('about');
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
+
+  // Auto-scroll hero carousel
+  useEffect(() => {
+    if (heroPhotos.length === 0) return;
+    
+    const interval = setInterval(() => {
+      setCurrentHeroIndex((prev) => (prev + 1) % heroPhotos.length);
+    }, 5000); // Change photo every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [heroPhotos.length]);
 
   return (
     <main className="min-h-screen bg-orange-50">
-      {/* Hero Section */}
-      <section className="bg-gradient-to-b from-amber-900 via-orange-700 to-orange-600 text-white py-24 text-center">
-        <h1 className="text-5xl font-bold mb-4 tracking-wide">🙏 Shri Pundalingeshwar Temple 🙏</h1>
-        <p className="text-2xl text-orange-100">Divine Seva & Worship Portal</p>
-      </section>
+      {/* Hero Section with Background Photo or Gradient */}
+      {heroPhotos.length > 0 ? (
+        <section 
+          className="relative text-white py-32 text-center overflow-hidden w-full"
+          style={{
+            backgroundImage: `url('${heroPhotos[currentHeroIndex].imageData}')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          {/* Dark overlay for readability */}
+          <div className="absolute inset-0 bg-black/50"></div>
 
-      {/* Navigation Tabs */}
-      <div className="bg-amber-800 sticky top-16 z-40 shadow-lg">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex flex-wrap justify-center gap-1">
-            {[
-              { id: 'about', label: 'About', icon: 'ℹ️' },
-              { id: 'timings', label: 'Timings', icon: '⏰' },
-              { id: 'sevas', label: 'Seva List', icon: '🙏' },
-              { id: 'booking', label: 'Book Now', icon: '📝' },
-              { id: 'gallery', label: 'Gallery', icon: '🖼️' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-6 py-4 font-bold text-lg transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-orange-500 text-white border-b-4 border-yellow-400'
-                    : 'text-white hover:bg-amber-700'
-                }`}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
+          {/* Content */}
+          <div className="relative z-10">
+            <h1 className="text-6xl font-serif font-bold mb-4 tracking-wide drop-shadow-lg">Shri Sadhguru Pundalingeshwar Temple</h1>
+            <p className="text-3xl font-serif font-light text-white drop-shadow-lg">Divine Seva & Worship Portal</p>
           </div>
-        </div>
-      </div>
 
-      {/* Tab Content */}
-      <div className="max-w-7xl mx-auto px-4 py-12">
+          {/* Carousel Indicators */}
+          {heroPhotos.length > 1 && (
+            <div className="relative z-20 mt-8 flex justify-center gap-2">
+              {heroPhotos.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentHeroIndex(index)}
+                  className={`h-3 rounded-full transition-all ${
+                    index === currentHeroIndex
+                      ? 'bg-white w-8'
+                      : 'bg-white/50 w-3 hover:bg-white/75'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="bg-gradient-to-b from-amber-900 via-orange-700 to-orange-600 text-white py-32 text-center w-full">
+          <h1 className="text-6xl font-serif font-bold mb-4 tracking-wide">Shri Sadhguru Pundalingeshwar Temple</h1>
+          <p className="text-3xl font-serif font-light">Divine Seva & Worship Portal</p>
+        </section>
+      )}
+
+
+      {/* Main Content */}
+      <div className="w-full px-4 py-12">
+        <div className="max-w-7xl mx-auto">
         {/* About Tab */}
         {activeTab === 'about' && (
           <section className="bg-white rounded-lg shadow-lg p-10 border-l-4 border-orange-600">
@@ -53,16 +77,16 @@ export default function Home() {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
-                <h3 className="text-2xl font-bold text-amber-900 mb-3">📖 Temple History</h3>
-                <p className="text-gray-700">{templeHistory.history}</p>
+                <h3 className="text-2xl font-bold text-amber-900 mb-3">{templeBoxes.box1Title}</h3>
+                <p className="text-gray-700">{templeBoxes.box1Content}</p>
               </div>
               <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
-                <h3 className="text-2xl font-bold text-amber-900 mb-3">✨ Our Values</h3>
-                <p className="text-gray-700">Faith, devotion, and compassion guide everything we do. We believe in unity, collective worship, and serving our community with love and respect.</p>
+                <h3 className="text-2xl font-bold text-amber-900 mb-3">{templeBoxes.box2Title}</h3>
+                <p className="text-gray-700">{templeBoxes.box2Content}</p>
               </div>
               <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-6 rounded-lg border-l-4 border-orange-500">
-                <h3 className="text-2xl font-bold text-amber-900 mb-3">🌟 Our Vision</h3>
-                <p className="text-gray-700">To be a beacon of light and spiritual guidance, inspiring devotion, strengthening community bonds, and creating a world filled with peace and divine blessings.</p>
+                <h3 className="text-2xl font-bold text-amber-900 mb-3">{templeBoxes.box3Title}</h3>
+                <p className="text-gray-700">{templeBoxes.box3Content}</p>
               </div>
             </div>
           </section>
@@ -178,7 +202,7 @@ export default function Home() {
           <section className="bg-white rounded-lg shadow-lg p-10 border-l-4 border-orange-600">
             <h2 className="text-4xl font-bold mb-8 text-amber-900 border-b-2 border-orange-400 pb-4">🖼️ Temple Gallery</h2>
             
-            {useContent().photos.length === 0 ? (
+            {photos.length === 0 ? (
               <div className="text-center py-12 bg-orange-50 rounded-lg">
                 <p className="text-xl text-gray-600 mb-4">📸 Gallery is being filled with sacred moments...</p>
                 <p className="text-gray-500 mb-6">Check back soon for photos from our temple events and celebrations!</p>
@@ -189,7 +213,7 @@ export default function Home() {
             ) : (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                  {useContent().photos.slice(0, 3).map((photo) => (
+                  {photos.slice(0, 3).map((photo) => (
                     <div
                       key={photo.id}
                       className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:scale-105 border-2 border-orange-100"
@@ -209,10 +233,10 @@ export default function Home() {
                   ))}
                 </div>
 
-                {useContent().photos.length > 3 && (
+                {photos.length > 3 && (
                   <div className="text-center">
                     <a href="/gallery" className="inline-block bg-gradient-to-r from-orange-500 to-orange-600 text-white px-8 py-4 rounded-lg font-bold hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg text-lg">
-                      ➜ View All {useContent().photos.length} Photos
+                      ➜ View All {photos.length} Photos
                     </a>
                   </div>
                 )}
@@ -220,6 +244,83 @@ export default function Home() {
             )}
           </section>
         )}
+
+        {/* Books Tab */}
+        {activeTab === 'books' && (
+          <section className="bg-white rounded-lg shadow-lg p-10 border-l-4 border-orange-600">
+            <h2 className="text-4xl font-bold mb-8 text-amber-900 border-b-2 border-orange-400 pb-4">📚 Temple Books</h2>
+            
+            {books.length === 0 ? (
+              <div className="text-center py-12 bg-orange-50 rounded-lg">
+                <p className="text-xl text-gray-600 mb-4">📖 Sacred books collection coming soon...</p>
+                <p className="text-gray-500">Check back soon for available scriptures and literature.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {books.map((book) => (
+                  <div
+                    key={book.id}
+                    className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg shadow-lg p-6 border-l-4 border-orange-500 hover:shadow-xl transition-all"
+                  >
+                    <div className="text-4xl mb-3">📕</div>
+                    <h3 className="text-xl font-bold text-amber-900 mb-2 break-words">{book.fileName}</h3>
+                    <p className="text-xs text-orange-600 font-semibold mb-4">📅 {book.uploadedAt}</p>
+                    <a
+                      href={book.fileData}
+                      download={book.fileName}
+                      className="block bg-orange-600 text-white text-center px-4 py-2 rounded font-bold hover:bg-orange-700 transition"
+                    >
+                      📥 Download
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Songs Tab */}
+        {activeTab === 'songs' && (
+          <section className="bg-white rounded-lg shadow-lg p-10 border-l-4 border-orange-600">
+            <h2 className="text-4xl font-bold mb-8 text-amber-900 border-b-2 border-orange-400 pb-4">🎵 Devotional Songs</h2>
+            
+            {songs.length === 0 ? (
+              <div className="text-center py-12 bg-orange-50 rounded-lg">
+                <p className="text-xl text-gray-600 mb-4">🎶 Song collection coming soon...</p>
+                <p className="text-gray-500">Check back soon for devotional music and chants.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {songs.map((song) => (
+                  <div
+                    key={song.id}
+                    className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg shadow-lg p-6 border-l-4 border-orange-500 hover:shadow-xl transition-all"
+                  >
+                    <div className="text-4xl mb-3">🎵</div>
+                    <h3 className="text-lg font-bold text-amber-900 mb-2 break-words">{song.fileName}</h3>
+                    <p className="text-xs text-orange-600 font-semibold mb-4">📅 {song.uploadedAt}</p>
+                    <audio
+                      controls
+                      className="w-full mb-4 rounded"
+                      controlsList="nodownload"
+                    >
+                      <source src={song.fileData} type="audio/mpeg" />
+                      Your browser does not support the audio element.
+                    </audio>
+                    <a
+                      href={song.fileData}
+                      download={song.fileName}
+                      className="block bg-orange-600 text-white text-center px-4 py-2 rounded font-bold hover:bg-orange-700 transition"
+                    >
+                      📥 Download
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+        </div>
       </div>
 
       {/* Contact Section - Always Visible */}

@@ -24,72 +24,70 @@ export default function LoginPage() {
     if (success) {
       router.push('/admin');
     } else {
-      setError('Invalid username or password. Use admin / admin123');
+      setError('Invalid username or password');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-amber-50 via-orange-50 to-yellow-50">
-      <div className="absolute top-6 left-6">
-        <button
-          onClick={() => router.push('/')}
-          className="flex items-center gap-2 text-amber-700 hover:text-amber-900 font-semibold px-4 py-2 rounded-lg bg-white shadow hover:shadow-lg transition"
-        >
-          ← Back to Main Site
-        </button>
-      </div>
-
-      <div className="bg-white p-10 rounded-xl shadow-lg w-full max-w-md border-t-4 border-orange-600">
-        <h1 className="text-3xl font-bold mb-2 text-center text-amber-900">🔐 Admin Login</h1>
-        <p className="text-center text-gray-600 mb-6">Manage your temple's content</p>
-        
-        {error && (
-          <div className="bg-red-100 border-2 border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4 font-medium">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="username" className="block text-sm font-bold text-amber-900 mb-2">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none font-medium"
-              placeholder="Enter username"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-bold text-amber-900 mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border-2 border-amber-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none font-medium"
-              placeholder="Enter password"
-            />
-          </div>
-
+    <div className="min-h-screen bg-orange-50">
+      {/* Header */}
+      <nav className="bg-gradient-to-r from-amber-900 to-orange-800 text-white py-4 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
+          <h1 className="text-3xl font-bold">🏛️ Shri Sadhguru Pundalingeshwar Temple</h1>
           <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white py-3 rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all font-bold text-lg shadow-md hover:shadow-lg"
+            onClick={() => router.push('/')}
+            className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2 rounded transition"
           >
-            Login
+            ← Back
           </button>
-        </form>
+        </div>
+      </nav>
 
-        <div className="mt-6 p-4 bg-orange-50 rounded-lg text-sm border-l-4 border-orange-500">
-          <p className="font-bold text-amber-900 mb-2">Demo Credentials:</p>
-          <p className="text-gray-700">Username: <code className="bg-white px-2 py-1 rounded font-bold text-amber-900">admin</code></p>
-          <p className="text-gray-700">Password: <code className="bg-white px-2 py-1 rounded font-bold text-amber-900">admin123</code></p>
+      {/* Login Form */}
+      <div className="flex items-center justify-center min-h-screen bg-orange-50 p-4">
+        <div className="bg-white p-10 rounded-lg shadow-2xl w-full max-w-md border-t-8 border-orange-600">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-amber-900 mb-2">🔐 Admin Login</h2>
+            <p className="text-gray-700 font-medium">Manage your temple's content</p>
+          </div>
+          
+          {error && (
+            <div className="bg-red-50 border-l-4 border-red-600 text-red-800 px-5 py-4 rounded mb-6 font-bold">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-amber-900 font-bold mb-2 text-lg">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter username"
+                className="w-full px-4 py-3 border-2 border-yellow-400 rounded focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-300 font-medium text-gray-800 bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-amber-900 font-bold mb-2 text-lg">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full px-4 py-3 border-2 border-yellow-400 rounded focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-300 font-medium text-gray-800 bg-white"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded text-lg transition shadow-lg"
+            >
+              Login
+            </button>
+          </form>
+
         </div>
       </div>
     </div>
