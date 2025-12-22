@@ -20,6 +20,9 @@
 # production
 /build
 
+# uploads folder (contains user-uploaded images)
+/public/uploads/
+
 # misc
 .DS_Store
 *.pem

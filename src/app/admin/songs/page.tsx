@@ -93,7 +93,7 @@ export default function ManageSongsPage() {
       {/* Header */}
       <nav className="bg-gradient-to-r from-amber-900 to-orange-800 text-white py-4 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
-          <h1 className="text-3xl font-bold">🏛️ Shri Sadhguru Pundalingeshwar Temple</h1>
+          <h1 className="text-3xl font-bold">🏛️ Shri Sadguru Pundalingeshwar Temple</h1>
           <button
             onClick={() => router.push('/admin')}
             className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-6 py-2 rounded transition"

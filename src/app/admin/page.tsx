@@ -37,6 +37,20 @@ export default function AdminPanel() {
       color: 'from-yellow-400 to-yellow-600',
     },
     {
+      title: 'Banner Logo Settings',
+      description: 'Upload a logo for the navigation banner',
+      icon: '🏛️',
+      path: '/admin/banner',
+      color: 'from-indigo-400 to-indigo-600',
+    },
+    {
+      title: 'Manage Gallery',
+      description: 'Upload and manage temple gallery photos',
+      icon: '📸',
+      path: '/admin/gallery',
+      color: 'from-green-400 to-green-600',
+    },
+    {
       title: 'Edit Temple History',
       description: 'Update the history and background information of the temple',
       icon: '📖',
@@ -91,6 +105,20 @@ export default function AdminPanel() {
       icon: '🎵',
       path: '/admin/songs',
       color: 'from-pink-400 to-pink-600',
+    },
+    {
+      title: 'Section Backgrounds',
+      description: 'Upload parallax background images for different sections',
+      icon: '🌄',
+      path: '/admin/backgrounds',
+      color: 'from-purple-400 to-purple-600',
+    },
+    {
+      title: 'Page Backgrounds',
+      description: 'Upload background images for individual pages',
+      icon: '🖼️',
+      path: '/admin/page-backgrounds',
+      color: 'from-teal-400 to-teal-600',
     },
   ];
 

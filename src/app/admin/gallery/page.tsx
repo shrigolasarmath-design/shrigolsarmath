@@ -73,7 +73,7 @@ export default function ManageGalleryPage() {
     }
   };
 
-  const handleUploadPhoto = (e: React.FormEvent) => {
+  const handleUploadPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!preview || !caption.trim()) {
@@ -81,17 +81,44 @@ export default function ManageGalleryPage() {
       return;
     }
 
-    const newPhoto: Photo = {
-      id: Date.now().toString(),
-      imageData: preview,
-      caption: caption.trim(),
-      uploadedAt: new Date().toLocaleDateString(),
-    };
+    try {
+      // Convert base64 to blob
+      const response = await fetch(preview);
+      const blob = await response.blob();
 
-    addPhoto(newPhoto);
-    setPreview(null);
-    setCaption('');
-    showSuccess('Photo added to gallery successfully!');
+      // Create FormData for server upload
+      const formData = new FormData();
+      formData.append('file', blob, 'photo.jpg');
+      formData.append('caption', caption.trim());
+
+      // Upload to server
+      const uploadResponse = await fetch('/api/photos', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const uploadedPhoto = await uploadResponse.json();
+
+      // Convert server response to Photo format
+      const newPhoto: Photo = {
+        id: uploadedPhoto.id,
+        imageData: uploadedPhoto.imageUrl,
+        caption: uploadedPhoto.caption,
+        uploadedAt: uploadedPhoto.uploadedAt,
+      };
+
+      addPhoto(newPhoto);
+      setPreview(null);
+      setCaption('');
+      showSuccess('Photo added to gallery successfully!');
+    } catch (error) {
+      alert('Failed to upload photo. Please try again.');
+      console.error('Upload error:', error);
+    }
   };
 
   const handleDeletePhoto = (id: string) => {
@@ -146,14 +173,14 @@ export default function ManageGalleryPage() {
                 >
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
                     onChange={handleFileInputChange}
                     className="hidden"
                     id="file-input"
                   />
                   <label htmlFor="file-input" className="cursor-pointer block">
                     <div className="text-4xl mb-3">📸</div>
-                    <p className="font-bold text-amber-900 text-lg">Drag & Drop Image</p>
+                    <p className="font-bold text-amber-900 text-lg">Drag & Drop Image (JPG, PNG, WebP)</p>
                     <p className="text-sm text-amber-700 mt-2">or click to select</p>
                   </label>
                 </div>

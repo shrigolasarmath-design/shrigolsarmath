@@ -28,6 +28,18 @@ export interface Timings {
   content: string;
 }
 
+export interface Timing {
+  id: string;
+  day: string;
+  opening: string;
+  closing: string;
+}
+
+export interface TimingsSection {
+  description: string;
+  timings: Timing[];
+}
+
 export interface Seva {
   id: string;
   name: string;
@@ -53,6 +65,7 @@ export interface Book {
   id: string;
   fileData: string; // base64 file data
   fileName: string;
+  coverImage: string; // base64 cover image
   uploadedAt: string;
 }
 
@@ -60,6 +73,7 @@ export interface Song {
   id: string;
   fileData: string; // base64 file data
   fileName: string;
+  coverImage: string; // base64 cover image
   uploadedAt: string;
 }
 
@@ -69,6 +83,28 @@ export interface HeroPhoto {
   uploadedAt: string;
 }
 
+export interface SectionBackgrounds {
+  aboutBg: string;
+  timingsBg: string;
+  sevasBg: string;
+  galleryBg: string;
+  booksBg: string;
+  songsBg: string;
+}
+
+export interface PageBackgrounds {
+  aboutPage: string;
+  timingsPage: string;
+  sevasPage: string;
+  galleryPage: string;
+  booksPage: string;
+  songsPage: string;
+}
+
+export interface BannerSettings {
+  logo: string; // base64 image data for banner logo
+}
+
 interface ContentContextType {
   photos: Photo[];
   addPhoto: (photo: Photo) => void;
@@ -76,6 +112,12 @@ interface ContentContextType {
   heroPhotos: HeroPhoto[];
   addHeroPhoto: (photo: HeroPhoto) => void;
   deleteHeroPhoto: (id: string) => void;
+  sectionBackgrounds: SectionBackgrounds;
+  updateSectionBackground: (section: keyof SectionBackgrounds, imageData: string) => void;
+  pageBackgrounds: PageBackgrounds;
+  updatePageBackground: (page: keyof PageBackgrounds, imageData: string) => void;
+  bannerSettings: BannerSettings;
+  updateBannerLogo: (imageData: string) => void;
   books: Book[];
   addBook: (book: Book) => void;
   deleteBook: (id: string) => void;
@@ -90,6 +132,8 @@ interface ContentContextType {
   updateAbout: (about: About) => void;
   timings: Timings;
   updateTimings: (timings: Timings) => void;
+  timingsSection: TimingsSection;
+  updateTimingsSection: (section: TimingsSection) => void;
   sevaSection: SevaSection;
   updateSevaSection: (section: SevaSection) => void;
   templeBoxes: TempleBoxes;
@@ -117,6 +161,11 @@ const defaultTimings: Timings = {
   content: 'Morning: 6:00 AM - 12:00 PM\nAfternoon: 4:00 PM - 8:00 PM\nEvening Aarti: 7:00 PM daily',
 };
 
+const defaultTimingsSection: TimingsSection = {
+  description: 'Plan your visit to the temple',
+  timings: [],
+};
+
 const defaultSevaSection: SevaSection = {
   description: 'Devotees can offer the following sevas to Lord Pundalingeshwara. Receipts will be issued for all contributions.',
   sevas: [
@@ -138,132 +187,204 @@ const defaultTempleBoxes: TempleBoxes = {
   box3Content: 'To be a beacon of light and spiritual guidance, inspiring devotion, strengthening community bonds, and creating a world filled with peace and divine blessings.',
 };
 
+const defaultSectionBackgrounds: SectionBackgrounds = {
+  aboutBg: '',
+  timingsBg: '',
+  sevasBg: '',
+  galleryBg: '',
+  booksBg: '',
+  songsBg: '',
+};
+
+const defaultPageBackgrounds: PageBackgrounds = {
+  aboutPage: '',
+  timingsPage: '',
+  sevasPage: '',
+  galleryPage: '',
+  booksPage: '',
+  songsPage: '',
+};
+
+const defaultBannerSettings: BannerSettings = {
+  logo: '',
+};
+
 export function ContentProvider({ children }: { children: React.ReactNode }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [heroPhotos, setHeroPhotos] = useState<HeroPhoto[]>([]);
+  const [sectionBackgrounds, setSectionBackgrounds] = useState<SectionBackgrounds>(defaultSectionBackgrounds);
+  const [pageBackgrounds, setPageBackgrounds] = useState<PageBackgrounds>(defaultPageBackgrounds);
+  const [bannerSettings, setBannerSettings] = useState<BannerSettings>(defaultBannerSettings);
   const [books, setBooks] = useState<Book[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [contactInfo, setContactInfo] = useState<ContactInfo>(defaultContactInfo);
   const [templeHistory, setTempleHistory] = useState<TempleHistory>(defaultTempleHistory);
   const [about, setAbout] = useState<About>(defaultAbout);
   const [timings, setTimings] = useState<Timings>(defaultTimings);
+  const [timingsSection, setTimingsSection] = useState<TimingsSection>(defaultTimingsSection);
   const [sevaSection, setSevaSection] = useState<SevaSection>(defaultSevaSection);
   const [templeBoxes, setTempleBoxes] = useState<TempleBoxes>(defaultTempleBoxes);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load from localStorage on mount
+  // Load from server on mount
   useEffect(() => {
-    const savedPhotos = localStorage.getItem('photos');
-    const savedHeroPhotos = localStorage.getItem('heroPhotos');
-    const savedBooks = localStorage.getItem('books');
-    const savedSongs = localStorage.getItem('songs');
-    const savedContact = localStorage.getItem('contactInfo');
-    const savedHistory = localStorage.getItem('templeHistory');
-    const savedAbout = localStorage.getItem('about');
-    const savedTimings = localStorage.getItem('timings');
-    const savedSevaSection = localStorage.getItem('sevaSection');
-    const savedTempleBoxes = localStorage.getItem('templeBoxes');
-    
-    if (savedPhotos) {
-      setPhotos(JSON.parse(savedPhotos));
-    }
-    if (savedHeroPhotos) {
-      setHeroPhotos(JSON.parse(savedHeroPhotos));
-    }
-    if (savedBooks) {
-      setBooks(JSON.parse(savedBooks));
-    }
-    if (savedSongs) {
-      setSongs(JSON.parse(savedSongs));
-    }
-    if (savedContact) {
-      setContactInfo(JSON.parse(savedContact));
-    }
-    if (savedHistory) {
-      setTempleHistory(JSON.parse(savedHistory));
-    }
-    if (savedAbout) {
-      setAbout(JSON.parse(savedAbout));
-    }
-    if (savedTimings) {
-      setTimings(JSON.parse(savedTimings));
-    }
-    if (savedSevaSection) {
-      setSevaSection(JSON.parse(savedSevaSection));
-    }
-    if (savedTempleBoxes) {
-      setTempleBoxes(JSON.parse(savedTempleBoxes));
-    }
-    setIsLoaded(true);
+    const loadData = async () => {
+      // Load photos from server
+      try {
+        const response = await fetch('/api/photos');
+        if (response.ok) {
+          const serverPhotos = await response.json();
+          // Convert server response to Photo format
+          const photosData = serverPhotos.map((p: any) => ({
+            id: p.id,
+            imageData: p.imageUrl,
+            caption: p.caption,
+            uploadedAt: p.uploadedAt,
+          }));
+          setPhotos(photosData);
+        }
+      } catch (error) {
+        console.error('Failed to load photos from server');
+      }
+
+      // Load all other content from server
+      try {
+        const response = await fetch('/api/content');
+        if (response.ok) {
+          const content = await response.json();
+          
+          if (content.heroPhotos) setHeroPhotos(content.heroPhotos);
+          if (content.sectionBackgrounds) setSectionBackgrounds(content.sectionBackgrounds);
+          if (content.pageBackgrounds) setPageBackgrounds(content.pageBackgrounds);
+          if (content.bannerSettings) setBannerSettings(content.bannerSettings);
+          if (content.books) setBooks(content.books);
+          if (content.songs) setSongs(content.songs);
+          if (content.contactInfo) setContactInfo(content.contactInfo);
+          if (content.templeHistory) setTempleHistory(content.templeHistory);
+          if (content.about) setAbout(content.about);
+          if (content.timings) setTimings(content.timings);
+          if (content.timingsSection) setTimingsSection(content.timingsSection);
+          if (content.sevaSection) setSevaSection(content.sevaSection);
+          if (content.templeBoxes) setTempleBoxes(content.templeBoxes);
+        }
+      } catch (error) {
+        console.error('Failed to load content from server');
+      }
+
+      setIsLoaded(true);
+    };
+
+    loadData();
   }, []);
 
-  // Save photos to localStorage
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem('photos', JSON.stringify(photos));
+  // Save content to server whenever it changes
+  const saveToServer = async (updates: any) => {
+    if (!isLoaded) return;
+    
+    try {
+      await fetch('/api/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch (error) {
+      console.error('Failed to save content to server:', error);
     }
+  };
+
+  // Save photos to server (managed via photos API)
+  useEffect(() => {
+    // Photos are managed via /api/photos
   }, [photos, isLoaded]);
 
-  // Save hero photos to localStorage
+  // Save hero photos to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('heroPhotos', JSON.stringify(heroPhotos));
+      saveToServer({ heroPhotos });
     }
   }, [heroPhotos, isLoaded]);
 
-  // Save books to localStorage
+  // Save section backgrounds to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('books', JSON.stringify(books));
+      saveToServer({ sectionBackgrounds });
+    }
+  }, [sectionBackgrounds, isLoaded]);
+
+  // Save page backgrounds to server
+  useEffect(() => {
+    if (isLoaded) {
+      saveToServer({ pageBackgrounds });
+    }
+  }, [pageBackgrounds, isLoaded]);
+
+  // Save banner settings to server
+  useEffect(() => {
+    if (isLoaded) {
+      saveToServer({ bannerSettings });
+    }
+  }, [bannerSettings, isLoaded]);
+
+  // Save books to server
+  useEffect(() => {
+    if (isLoaded) {
+      saveToServer({ books });
     }
   }, [books, isLoaded]);
 
-  // Save songs to localStorage
+  // Save songs to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('songs', JSON.stringify(songs));
+      saveToServer({ songs });
     }
   }, [songs, isLoaded]);
 
-  // Save contact info to localStorage
+  // Save contact info to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('contactInfo', JSON.stringify(contactInfo));
+      saveToServer({ contactInfo });
     }
   }, [contactInfo, isLoaded]);
 
-  // Save temple history to localStorage
+  // Save temple history to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('templeHistory', JSON.stringify(templeHistory));
+      saveToServer({ templeHistory });
     }
   }, [templeHistory, isLoaded]);
 
-  // Save about to localStorage
+  // Save about to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('about', JSON.stringify(about));
+      saveToServer({ about });
     }
   }, [about, isLoaded]);
 
-  // Save timings to localStorage
+  // Save timings to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('timings', JSON.stringify(timings));
+      saveToServer({ timings });
     }
   }, [timings, isLoaded]);
 
-  // Save seva section to localStorage
+  // Save timingsSection to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('sevaSection', JSON.stringify(sevaSection));
+      saveToServer({ timingsSection });
+    }
+  }, [timingsSection, isLoaded]);
+
+  // Save seva section to server
+  useEffect(() => {
+    if (isLoaded) {
+      saveToServer({ sevaSection });
     }
   }, [sevaSection, isLoaded]);
 
-  // Save temple boxes to localStorage
+  // Save temple boxes to server
   useEffect(() => {
     if (isLoaded) {
-      localStorage.setItem('templeBoxes', JSON.stringify(templeBoxes));
+      saveToServer({ templeBoxes });
     }
   }, [templeBoxes, isLoaded]);
 
@@ -273,6 +394,12 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
 
   const deletePhoto = (id: string) => {
     setPhotos((prev) => prev.filter((photo) => photo.id !== id));
+    // Delete from server
+    fetch('/api/photos', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photoId: id }),
+    }).catch(error => console.error('Failed to delete photo from server', error));
   };
 
   const addHeroPhoto = (photo: HeroPhoto) => {
@@ -315,6 +442,10 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
     setTimings(timings);
   };
 
+  const updateTimingsSection = (section: TimingsSection) => {
+    setTimingsSection(section);
+  };
+
   const updateSevaSection = (section: SevaSection) => {
     setSevaSection(section);
   };
@@ -323,8 +454,26 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
     setTempleBoxes(boxes);
   };
 
+  const updateSectionBackground = (section: keyof SectionBackgrounds, imageData: string) => {
+    setSectionBackgrounds(prev => ({
+      ...prev,
+      [section]: imageData
+    }));
+  };
+
+  const updatePageBackground = (page: keyof PageBackgrounds, imageData: string) => {
+    setPageBackgrounds(prev => ({
+      ...prev,
+      [page]: imageData
+    }));
+  };
+
+  const updateBannerLogo = (imageData: string) => {
+    setBannerSettings({ logo: imageData });
+  };
+
   return (
-    <ContentContext.Provider value={{ photos, addPhoto, deletePhoto, heroPhotos, addHeroPhoto, deleteHeroPhoto, books, addBook, deleteBook, songs, addSong, deleteSong, contactInfo, updateContactInfo, templeHistory, updateTempleHistory, about, updateAbout, timings, updateTimings, sevaSection, updateSevaSection, templeBoxes, updateTempleBoxes }}>
+    <ContentContext.Provider value={{ photos, addPhoto, deletePhoto, heroPhotos, addHeroPhoto, deleteHeroPhoto, sectionBackgrounds, updateSectionBackground, pageBackgrounds, updatePageBackground, bannerSettings, updateBannerLogo, books, addBook, deleteBook, songs, addSong, deleteSong, contactInfo, updateContactInfo, templeHistory, updateTempleHistory, about, updateAbout, timings, updateTimings, timingsSection, updateTimingsSection, sevaSection, updateSevaSection, templeBoxes, updateTempleBoxes }}>
       {children}
     </ContentContext.Provider>
   );
