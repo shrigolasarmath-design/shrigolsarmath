@@ -1,3 +1,9 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 interface PhotoData {
   id: string;
   caption: string;
@@ -10,31 +16,18 @@ let devPhotos: PhotoData[] = [];
 
 export async function GET() {
   try {
-    if (isDev) {
-      // In development, return in-memory storage
-      const photos = devPhotos.map(photo => ({
-        id: photo.id,
-        caption: photo.caption,
-        uploadedAt: photo.uploadedAt,
-        imageData: `/uploads/photos/${photo.id}.${photo.fileExt || 'jpg'}`
-      }));
-      return Response.json(photos);
-    } else {
-      // In production, use Netlify Blobs
-      const { getStore } = await import('@netlify/blobs');
-      const store = getStore('temple-photos');
-      const photosIndex = await store.get('index', { type: 'json' }) as PhotoData[] | null;
-      
-      const photos = (photosIndex || []).map(photo => ({
-        id: photo.id,
-        caption: photo.caption,
-        uploadedAt: photo.uploadedAt,
-        imageData: `/api/photos/${photo.id}`
-      }));
-      return Response.json(photos);
+    const { data: photos, error } = await supabase
+      .from('photos')
+      .select('*');
+
+    if (error) {
+      console.error('Error fetching photos:', error);
+      return Response.json({ error: 'Failed to load photos' }, { status: 500 });
     }
+
+    return Response.json(photos);
   } catch (error) {
-    console.error('Error loading photos:', error);
+    console.error('Unexpected error loading photos:', error);
     return Response.json({ error: 'Failed to load photos' }, { status: 500 });
   }
 }

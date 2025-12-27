@@ -3,12 +3,17 @@
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import fs from 'fs';
 
 export default function AdminPanel() {
   const { isLoggedIn } = useAuth();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [authorizedNumbers, setAuthorizedNumbers] = useState<string[]>([]);
+  const [newNumber, setNewNumber] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -27,6 +32,36 @@ export default function AdminPanel() {
   if (!isLoggedIn) {
     return null;
   }
+
+  // Handler to add a new authorized number
+  const handleAddNumber = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthSuccess('');
+    const phone = newNumber.trim();
+    if (!/^\d{10}$/.test(phone)) {
+      setAuthError('Enter a valid 10-digit number');
+      return;
+    }
+    if (authorizedNumbers.includes(phone)) {
+      setAuthError('Number already authorized');
+      return;
+    }
+    // Call API to add number
+    const res = await fetch('/api/authorized-numbers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setAuthorizedNumbers(data.numbers);
+      setAuthSuccess('Number added successfully!');
+      setNewNumber('');
+    } else {
+      setAuthError(data.error || 'Failed to add number');
+    }
+  };
 
   const adminOptions = [
     {
@@ -124,6 +159,33 @@ export default function AdminPanel() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-yellow-50">
+      {/* Authorized Numbers Block */}
+      <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-8 mt-8 mb-12 border-t-4 border-orange-600">
+        <h2 className="text-2xl font-bold mb-4 text-amber-900">Authorized Admin Numbers</h2>
+        <ul className="mb-4">
+          {authorizedNumbers.map(num => (
+            <li key={num} className="text-lg text-gray-800">+91 {num}</li>
+          ))}
+        </ul>
+        <form onSubmit={handleAddNumber} className="flex gap-4 items-center">
+          <input
+            type="tel"
+            value={newNumber}
+            onChange={e => setNewNumber(e.target.value)}
+            placeholder="Add new 10-digit number"
+            className="px-4 py-2 border-2 border-yellow-400 rounded focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-300 font-medium text-gray-800 bg-white"
+          />
+          <button
+            type="submit"
+            className="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-6 rounded text-lg transition shadow-lg"
+          >
+            Add
+          </button>
+        </form>
+        {authError && <div className="text-red-600 mt-2 font-bold">{authError}</div>}
+        {authSuccess && <div className="text-green-600 mt-2 font-bold">{authSuccess}</div>}
+      </div>
+
       {/* Header */}
       <header className="bg-gradient-to-r from-amber-900 to-orange-800 text-white py-4 shadow-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">

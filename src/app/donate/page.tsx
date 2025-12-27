@@ -1,15 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 export default function DonatePage() {
+  const router = useRouter();
+  const { isUserLoggedIn } = useAuth();
   const [amount, setAmount] = useState('');
   const [donorName, setDonorName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const predefinedAmounts = [10, 25, 50, 100, 250];
+  useEffect(() => {
+    const userAuth = localStorage.getItem('userAuth');
+    if (userAuth !== 'true' && !isUserLoggedIn) {
+      router.push('/login');
+    }
+  }, [isUserLoggedIn, router]);
+  }, [router]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,33 +67,10 @@ export default function DonatePage() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Predefined Amounts */}
-              <div>
-                <label className="block text-lg font-semibold text-amber-900 mb-4">
-                  💰 Select Donation Amount
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  {predefinedAmounts.map((preAmount) => (
-                    <button
-                      key={preAmount}
-                      type="button"
-                      onClick={() => setAmount(preAmount.toString())}
-                      className={`py-4 px-3 rounded-lg font-bold transition-all transform hover:scale-105 ${
-                        amount === preAmount.toString()
-                          ? 'bg-gradient-to-r from-yellow-600 to-amber-600 text-white shadow-lg'
-                          : 'bg-gradient-to-r from-yellow-100 to-orange-100 text-amber-900 hover:from-yellow-200 hover:to-orange-200 border-2 border-yellow-300'
-                      }`}
-                    >
-                      ₹{preAmount}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Amount */}
+              {/* Donation Amount */}
               <div>
                 <label htmlFor="amount" className="block text-lg font-semibold text-amber-900 mb-2">
-                  💳 Custom Amount (₹)
+                  💳 Donation Amount (₹)
                 </label>
                 <input
                   id="amount"

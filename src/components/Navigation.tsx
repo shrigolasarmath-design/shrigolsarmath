@@ -7,14 +7,18 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 export function Navigation() {
-  const { isLoggedIn, logout } = useAuth();
+  const { isLoggedIn, logout, isUserLoggedIn, logoutUser } = useAuth();
   const { bannerSettings } = useContent();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const handleLogout = () => {
+  const handleAdminLogout = () => {
     logout();
     router.push('/');
+  };
+
+  const handleUserLogout = () => {
+    logoutUser();
   };
 
   const navLinks = [
@@ -71,16 +75,33 @@ export function Navigation() {
                     Admin Panel
                   </Link>
                   <button
-                    onClick={handleLogout}
+                    onClick={handleAdminLogout}
+                    className="bg-red-600 hover:bg-red-700 px-3 md:px-4 py-2 rounded font-medium transition text-sm md:text-base"
+                  >
+                    Admin Logout
+                  </button>
+                </>
+              ) : isUserLoggedIn ? (
+                <>
+                  <Link href="/transaction-history" className="bg-green-600 hover:bg-green-700 px-3 md:px-4 py-2 rounded font-medium transition text-sm md:text-base">
+                    Transaction History
+                  </Link>
+                  <button
+                    onClick={handleUserLogout}
                     className="bg-red-600 hover:bg-red-700 px-3 md:px-4 py-2 rounded font-medium transition text-sm md:text-base"
                   >
                     Logout
                   </button>
                 </>
               ) : (
-                <Link href="/login" className="bg-orange-600 hover:bg-orange-700 px-3 md:px-4 py-2 rounded font-bold transition text-sm md:text-base">
-                  Admin Login
-                </Link>
+                <>
+                  <Link href="/admin/login" className="bg-orange-600 hover:bg-orange-700 px-3 md:px-4 py-2 rounded font-bold transition text-sm md:text-base">
+                    Admin Login
+                  </Link>
+                  <Link href="/login" className="bg-blue-600 hover:bg-blue-700 px-3 md:px-4 py-2 rounded font-bold transition text-sm md:text-base">
+                    User Login
+                  </Link>
+                </>
               )}
             </div>
           </div>

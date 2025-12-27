@@ -22,6 +22,7 @@
 
 # uploads folder (contains user-uploaded images)
 /public/uploads/
+!/public/uploads/photos/albums.json
 
 # misc
 .DS_Store

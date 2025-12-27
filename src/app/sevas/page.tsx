@@ -58,8 +58,8 @@ export default function SevasPage() {
             </div>
             
             <div className="bg-gradient-to-r from-orange-500 to-yellow-500 p-8 text-center">
-              <Link href="/donate" className="inline-block bg-white text-orange-700 px-10 py-4 rounded-lg font-bold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg">
-                Book a Seva Online
+              <Link href="/login" className="inline-block bg-white text-orange-700 px-10 py-4 rounded-lg font-bold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-lg">
+                Login to Book a Seva
               </Link>
             </div>
           </div>

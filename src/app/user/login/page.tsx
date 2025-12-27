@@ -5,40 +5,35 @@ import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 export default function UserLogin() {
-  const { loginUser, isLoggedIn } = useAuth();
+  const { login, isLoggedIn } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn) {
-      router.push('/');
+      router.push('/user/dashboard');
     }
   }, [isLoggedIn, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
     try {
-      const success = await loginUser(email, password);
+      const success = await login(username, password);
       if (success) {
-        console.log('User logged in successfully');
+        router.push('/user/dashboard');
       } else {
-        setError('Invalid email or password');
+        setError('Invalid username or password');
       }
     } catch (err) {
       setError('An error occurred during login');
-      console.error('Login error:', err);
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100 py-8">
+    <div className="flex items-center justify-center h-screen bg-gray-100">
       <div className="bg-blue-100 p-8 rounded shadow-md w-full max-w-md border-t-4 border-blue-500">
         <div className="bg-white p-6 rounded shadow-md">
           <h1 className="text-2xl font-bold mb-2 text-blue-700 flex items-center">
@@ -51,14 +46,14 @@ export default function UserLogin() {
           {error && <p className="text-red-500 mb-4">{error}</p>}
           <form onSubmit={handleLogin}>
             <div className="mb-4">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Username
               </label>
               <input
-                type="email"
-                id="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                id="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 required
               />
@@ -78,18 +73,11 @@ export default function UserLogin() {
             </div>
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-50"
+              className="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              Login
             </button>
           </form>
-          <p className="text-center text-sm text-gray-600 mt-4">
-            Don't have an account?{' '}
-            <a href="/signup" className="text-indigo-600 hover:text-indigo-700 font-medium">
-              Sign up here
-            </a>
-          </p>
         </div>
       </div>
     </div>

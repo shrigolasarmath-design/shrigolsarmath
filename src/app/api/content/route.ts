@@ -1,3 +1,9 @@
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 interface ContentData {
   heroPhotos?: any[];
   sectionBackgrounds?: any;
@@ -25,44 +31,46 @@ export async function GET() {
       // In development, return in-memory storage
       return Response.json(devStorage);
     } else {
-      // In production, use Netlify Blobs
-      const { getStore } = await import('@netlify/blobs');
-      const store = getStore('temple-content');
-      const content = await store.get('content', { type: 'json' }) as ContentData | null;
+      const { data: content, error } = await supabase
+        .from('content')
+        .select('*');
+
+      if (error) {
+        console.error('Error fetching content:', error);
+        return Response.json({}, { status: 500 });
+      }
+
       return Response.json(content || {});
     }
   } catch (error) {
-    console.error('Error reading content:', error);
+    console.error('Unexpected error reading content:', error);
     return Response.json({}, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  const newContent = await request.json();
+
   try {
-    const updates = await request.json();
-    
     if (isDev) {
       // In development, use in-memory storage
-      devStorage = { ...devStorage, ...updates };
+      devStorage = { ...devStorage, ...newContent };
       return Response.json({ success: true, content: devStorage });
     } else {
-      // In production, use Netlify Blobs
-      const { getStore } = await import('@netlify/blobs');
-      const store = getStore('temple-content');
-      
-      let existingContent = await store.get('content', { type: 'json' }) as ContentData | null;
-      if (!existingContent) {
-        existingContent = {};
+      const { error } = await supabase
+        .from('content')
+        .upsert(newContent);
+
+      if (error) {
+        console.error('Error updating content:', error);
+        return Response.json({ error: 'Failed to update content' }, { status: 500 });
       }
-      
-      const newContent = { ...existingContent, ...updates };
-      await store.setJSON('content', newContent);
-      
-      return Response.json({ success: true, content: newContent });
+
+      return Response.json({ success: true });
     }
   } catch (error) {
-    console.error('Error saving content:', error);
-    return Response.json({ error: 'Failed to save content' }, { status: 500 });
+    console.error('Unexpected error updating content:', error);
+    return Response.json({ error: 'Failed to update content' }, { status: 500 });
   }
 }
 
