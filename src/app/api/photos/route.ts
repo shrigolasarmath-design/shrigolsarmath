@@ -45,8 +45,15 @@ export async function GET() {
       let imageUrl: string;
       
       if (process.env.NODE_ENV === 'production') {
-        // In production, use API endpoint to retrieve from Blobs using blob_key
-        imageUrl = `/api/photos/${photo.id}/image`;
+        // In production, only use API endpoint if blob_key exists
+        // Old photos without blob_key won't show (they need to be re-uploaded)
+        if (photo.blob_key) {
+          imageUrl = `/api/photos/${photo.id}/image`;
+        } else {
+          // Old photo - no blob_key, can't serve in production
+          imageUrl = '/placeholder.jpg';
+          console.warn(`Photo ${photo.id} missing blob_key - needs to be re-uploaded for production`);
+        }
       } else {
         // In development, serve directly from public directory
         // Use file_path (has full path), or blob_key with prefix
@@ -138,6 +145,9 @@ export async function POST(request: Request) {
     let photo = null;
     let insertError = null;
 
+    // Debug: Log insertData before insert
+    console.log('POST /api/photos - insertData:', insertData);
+
     // Try with both columns
     const { data: photoData, error } = await supabase
       .from('photos')
@@ -146,6 +156,8 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      // Debug: Log error details
+      console.error('POST /api/photos - Supabase insert error:', error);
       // If error is about blob_key or caption column, try without them
       if (error.message && (error.message.includes('caption') || error.message.includes('blob_key'))) {
         console.log('Retrying insert without optional columns');
@@ -178,6 +190,14 @@ export async function POST(request: Request) {
       return Response.json({ error: errorMsg }, { status: 500 });
     }
 
+    // Guarantee blob_key is present in production
+    if (process.env.NODE_ENV === 'production') {
+      if (!photo.blob_key) {
+        console.error('POST /api/photos - blob_key missing after insert:', photo);
+        return Response.json({ error: 'Photo upload failed: blob_key not stored in database.' }, { status: 500 });
+      }
+    }
+
     return Response.json({
       id: photo.id,
       caption: caption || 'Untitled',
@@ -187,7 +207,7 @@ export async function POST(request: Request) {
         month: 'long',
         day: 'numeric',
       }),
-      imageUrl: filePath
+      imageUrl: process.env.NODE_ENV === 'production' ? `/api/photos/${photo.id}/image` : filePath
     }, { status: 201 });
   } catch (error) {
     console.error('Photo upload error:', error);

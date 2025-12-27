@@ -52,8 +52,9 @@ export async function GET(
       const data = await store.get(filename);
       
       if (!data) {
-        console.error('Blob not found:', filename);
-        return new Response('Image not found', { status: 404 });
+        // Photo wasn't stored in Blobs (likely old photo from dev)
+        console.warn('Blob not found for:', filename, '- Photo may need to be re-uploaded');
+        return new Response('Image not available - please re-upload photo', { status: 404 });
       }
 
       // Determine content type from filename
