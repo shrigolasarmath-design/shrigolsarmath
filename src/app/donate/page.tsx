@@ -19,7 +19,6 @@ export default function DonatePage() {
       router.push('/login');
     }
   }, [isUserLoggedIn, router]);
-  }, [router]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
