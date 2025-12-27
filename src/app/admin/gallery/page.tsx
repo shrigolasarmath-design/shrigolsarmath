@@ -12,16 +12,6 @@ export default function ManageGalleryPage() {
   const [selectedAlbum, setSelectedAlbum] = useState<any>(null);
   const [newAlbumName, setNewAlbumName] = useState('');
   const [loading, setLoading] = useState(true);
-    // Fetch albums.json
-    useEffect(() => {
-      fetch('/uploads/photos/albums.json')
-        .then((res) => res.json())
-        .then((data) => {
-          setAlbums(data);
-          setSelectedAlbum(data[0] || null);
-          setLoading(false);
-        });
-    }, []);
   const router = useRouter();
   
   const [mounted, setMounted] = useState(false);
@@ -29,6 +19,51 @@ export default function ManageGalleryPage() {
   const [caption, setCaption] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [preview, setPreview] = useState<string | null>(null);
+
+  // Fetch albums from server on mount
+  useEffect(() => {
+    const fetchAlbums = async () => {
+      try {
+        const response = await fetch('/api/albums');
+        if (response.ok) {
+          const albumsData = await response.json();
+          if (albumsData.length === 0) {
+            // Create default album if none exist
+            const createRes = await fetch('/api/albums', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: 'All Photos' })
+            });
+            if (createRes.ok) {
+              const newAlbum = await createRes.json();
+              setAlbums([newAlbum]);
+              setSelectedAlbum(newAlbum);
+            }
+          } else {
+            setAlbums(albumsData);
+            setSelectedAlbum(albumsData[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching albums:', error);
+        // Fallback to localStorage if API fails
+        const stored = localStorage.getItem('albums');
+        if (stored) {
+          const albumsData = JSON.parse(stored);
+          setAlbums(albumsData);
+          setSelectedAlbum(albumsData[0] || null);
+        } else {
+          const defaultAlbum = { id: 'offline', name: 'All Photos', photos: [] };
+          setAlbums([defaultAlbum]);
+          setSelectedAlbum(defaultAlbum);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAlbums();
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -148,6 +183,29 @@ export default function ManageGalleryPage() {
     setTimeout(() => setSuccessMessage(''), 3000);
   };
 
+  // Save albums to server whenever they change
+  useEffect(() => {
+    if (albums.length > 0 && !loading) {
+      // Save to localStorage as fallback
+      localStorage.setItem('albums', JSON.stringify(albums));
+      
+      // Sync albums to server
+      albums.forEach(async (album) => {
+        if (album.id && !album.id.startsWith('offline')) {
+          try {
+            await fetch(`/api/albums/${album.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name: album.name, photos: album.photos })
+            });
+          } catch (error) {
+            console.error('Error syncing album:', error);
+          }
+        }
+      });
+    }
+  }, [albums, loading]);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-yellow-50 pt-20 pb-12">
       <div className="max-w-6xl mx-auto px-4">
@@ -193,16 +251,34 @@ export default function ManageGalleryPage() {
                         }}
                         className="px-2 py-1 border rounded"
                         autoFocus
-                        onBlur={() => {
-                          setSelectedAlbum({ ...selectedAlbum, editing: false });
-                          showSuccess('Album name updated!');
-                          // TODO: Save albums to server (albums.json)
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter') {
+                        onBlur={async () => {
+                          try {
+                            await fetch(`/api/albums/${album.id}`, {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ name: selectedAlbum.name })
+                            });
                             setSelectedAlbum({ ...selectedAlbum, editing: false });
                             showSuccess('Album name updated!');
-                            // TODO: Save albums to server (albums.json)
+                          } catch (error) {
+                            console.error('Error updating album:', error);
+                            alert('Failed to update album');
+                          }
+                        }}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Enter') {
+                            try {
+                              await fetch(`/api/albums/${album.id}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name: selectedAlbum.name })
+                              });
+                              setSelectedAlbum({ ...selectedAlbum, editing: false });
+                              showSuccess('Album name updated!');
+                            } catch (error) {
+                              console.error('Error updating album:', error);
+                              alert('Failed to update album');
+                            }
                           }
                         }}
                       />
@@ -223,13 +299,18 @@ export default function ManageGalleryPage() {
                   <button
                     title="Delete album"
                     className="text-red-600 hover:text-red-800 px-2"
-                    onClick={() => {
+                    onClick={async () => {
                       if (confirm('Are you sure you want to delete this album and all its photos?')) {
-                        const updatedAlbums = albums.filter(a => a.id !== album.id);
-                        setAlbums(updatedAlbums);
-                        if (selectedAlbum?.id === album.id) setSelectedAlbum(updatedAlbums[0] || null);
-                        showSuccess('Album deleted!');
-                        // TODO: Save albums to server (albums.json)
+                        try {
+                          await fetch(`/api/albums/${album.id}`, { method: 'DELETE' });
+                          const updatedAlbums = albums.filter(a => a.id !== album.id);
+                          setAlbums(updatedAlbums);
+                          if (selectedAlbum?.id === album.id) setSelectedAlbum(updatedAlbums[0] || null);
+                          showSuccess('Album deleted!');
+                        } catch (error) {
+                          console.error('Error deleting album:', error);
+                          alert('Failed to delete album');
+                        }
                       }
                     }}
                   >🗑️</button>
@@ -245,14 +326,25 @@ export default function ManageGalleryPage() {
                 className="px-4 py-2 border-2 border-amber-300 rounded-l-lg focus:ring-2 focus:ring-amber-500 outline-none"
               />
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!newAlbumName.trim()) return;
-                  const newAlbum = { id: Date.now().toString(), name: newAlbumName.trim(), photos: [] };
-                  setAlbums([newAlbum, ...albums]);
-                  setSelectedAlbum(newAlbum);
-                  setNewAlbumName('');
-                  showSuccess('Album created!');
-                  // TODO: Save albums to server (albums.json)
+                  try {
+                    const response = await fetch('/api/albums', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ name: newAlbumName.trim() })
+                    });
+                    if (response.ok) {
+                      const newAlbum = await response.json();
+                      setAlbums([newAlbum, ...albums]);
+                      setSelectedAlbum(newAlbum);
+                      setNewAlbumName('');
+                      showSuccess('Album created!');
+                    }
+                  } catch (error) {
+                    console.error('Error creating album:', error);
+                    alert('Failed to create album');
+                  }
                 }}
                 className="px-6 py-2 bg-orange-500 text-white font-bold rounded-r-lg hover:bg-orange-600 transition-all"
               >
