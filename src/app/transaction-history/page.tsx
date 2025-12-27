@@ -5,10 +5,18 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_KEY!
-);
+let supabase: any = null;
+
+try {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (supabaseUrl && supabaseKey) {
+    supabase = createClient(supabaseUrl, supabaseKey);
+  }
+} catch (error) {
+  console.error('Failed to initialize Supabase:', error);
+}
 
 interface Transaction {
   id: string;
@@ -34,6 +42,12 @@ export default function TransactionHistory() {
 
     const fetchTransactions = async () => {
       try {
+        if (!supabase) {
+          setError('Supabase not configured');
+          setLoading(false);
+          return;
+        }
+
         const userEmail = localStorage.getItem('userEmail');
         if (!userEmail) {
           setError('User email not found');

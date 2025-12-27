@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 interface ContentData {
   heroPhotos?: any[];
@@ -31,6 +34,11 @@ export async function GET() {
       // In development, return in-memory storage
       return Response.json(devStorage);
     } else {
+      if (!supabase) {
+        console.error('Supabase not configured');
+        return Response.json({}, { status: 500 });
+      }
+
       const { data: content, error } = await supabase
         .from('content')
         .select('*');
@@ -57,6 +65,11 @@ export async function POST(request: Request) {
       devStorage = { ...devStorage, ...newContent };
       return Response.json({ success: true, content: devStorage });
     } else {
+      if (!supabase) {
+        console.error('Supabase not configured');
+        return Response.json({ error: 'Failed to update content' }, { status: 500 });
+      }
+
       const { error } = await supabase
         .from('content')
         .upsert(newContent);

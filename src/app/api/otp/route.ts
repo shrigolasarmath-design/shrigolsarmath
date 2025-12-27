@@ -2,16 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import twilio from 'twilio';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-const twilioClient = twilio(
-  process.env.TWILIO_ACCOUNT_SID!,
-  process.env.TWILIO_AUTH_TOKEN!
-);
+const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
+
+const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID || '';
+const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || '';
+
+const twilioClient = twilioAccountSid && twilioAuthToken
+  ? twilio(twilioAccountSid, twilioAuthToken)
+  : null;
 
 export async function POST(request: NextRequest) {
+  if (!supabase) {
+    return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+  }
+
   const { phone } = await request.json();
 
   if (!phone) {
@@ -46,12 +55,16 @@ export async function POST(request: NextRequest) {
 
     // Send OTP via Twilio (optional - remove if not using SMS)
     try {
-      await twilioClient.messages.create({
-        body: `Your OTP is: ${otp}. Valid for 5 minutes.`,
-        from: process.env.TWILIO_PHONE_NUMBER!,
-        to: `+91${phone}`,
-      });
-      console.log('OTP sent via SMS to:', phone);
+      if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+        await twilioClient.messages.create({
+          body: `Your OTP is: ${otp}. Valid for 5 minutes.`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: `+91${phone}`,
+        });
+        console.log('OTP sent via SMS to:', phone);
+      } else {
+        console.warn('Twilio not configured, skipping SMS');
+      }
     } catch (smsError) {
       console.warn('Failed to send SMS, but OTP was stored:', smsError);
       // Don't fail the request if SMS fails - OTP is still in database

@@ -5,23 +5,26 @@ import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { useRouter } from 'next/navigation';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!; // Use public key for client-side operations
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Initialize Supabase client safely
+let supabase: any = null;
 
-console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-console.log('Supabase Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-
-const validateEnvVariables = () => {
-  if (!supabaseUrl || !supabaseKey) {
+try {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (supabaseUrl && supabaseKey) {
+    supabase = createClient(supabaseUrl, supabaseKey);
+    if (typeof window !== 'undefined') {
+      console.log('Supabase URL:', supabaseUrl);
+      console.log('Supabase Key:', supabaseKey);
+      console.log('Supabase client initialized:', supabase);
+    }
+  } else {
     console.error('Supabase environment variables are missing.');
-    throw new Error('Supabase environment variables are not set.');
   }
-};
-
-validateEnvVariables();
-
-console.log('Supabase client initialized:', supabase);
+} catch (error) {
+  console.error('Failed to initialize Supabase:', error);
+}
 
 
 interface AuthContextType {
@@ -66,6 +69,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback(async (username: string, password: string) => {
+    if (!supabase) {
+      console.error('Supabase not initialized');
+      return false;
+    }
+
     try {
       const { data: admin, error } = await supabase
         .from('admins')
@@ -103,6 +111,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const loginUser = useCallback(async (email: string, password: string) => {
+    if (!supabase) {
+      console.error('Supabase not initialized');
+      return false;
+    }
+
     try {
       const { data: user, error } = await supabase
         .from('users')

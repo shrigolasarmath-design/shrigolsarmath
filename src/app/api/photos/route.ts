@@ -1,8 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+const supabase = supabaseUrl && supabaseKey 
+  ? createClient(supabaseUrl, supabaseKey)
+  : null;
 
 interface PhotoData {
   id: string;
@@ -15,6 +18,10 @@ const isDev = process.env.NODE_ENV === 'development';
 let devPhotos: PhotoData[] = [];
 
 export async function GET() {
+  if (!supabase) {
+    return Response.json({ error: 'Supabase not configured' }, { status: 500 });
+  }
+
   try {
     const { data: photos, error } = await supabase
       .from('photos')

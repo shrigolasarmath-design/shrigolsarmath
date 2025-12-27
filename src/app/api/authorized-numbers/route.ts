@@ -31,6 +31,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!supabase) {
+    return new Response(JSON.stringify({ error: 'Supabase not configured' }), { status: 500 });
+  }
+
   const { phone } = await request.json();
   if (!/^\d{10}$/.test(phone)) {
     return new Response(JSON.stringify({ error: 'Invalid phone number' }), { status: 400 });
