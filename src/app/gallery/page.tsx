@@ -10,15 +10,30 @@ export default function GalleryPage() {
   const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch albums.json
+  // Fetch albums from API
   useEffect(() => {
-    fetch('/uploads/photos/albums.json')
-      .then((res) => res.json())
-      .then((data) => {
-        setAlbums(data);
-        setSelectedAlbum(data[0] || null);
+    const fetchAlbums = async () => {
+      try {
+        const response = await fetch('/api/albums');
+        if (response.ok) {
+          const albumsData = await response.json();
+          // Ensure all albums have photos array
+          const albumsWithPhotos = albumsData.map((album: any) => ({
+            ...album,
+            photos: album.photos || []
+          }));
+          setAlbums(albumsWithPhotos);
+          setSelectedAlbum(albumsWithPhotos[0] || null);
+        }
+      } catch (error) {
+        console.error('Error fetching albums:', error);
+        setAlbums([]);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    fetchAlbums();
   }, []);
 
   return (
@@ -56,7 +71,7 @@ export default function GalleryPage() {
             </div>
 
             {/* Photos in Selected Album */}
-            {selectedAlbum && selectedAlbum.photos.length > 0 ? (
+            {selectedAlbum && selectedAlbum.photos && selectedAlbum.photos.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-slideIn">
                 {selectedAlbum.photos.map((photo: any, index: number) => (
                   <div
@@ -67,7 +82,7 @@ export default function GalleryPage() {
                   >
                     <div className="relative w-full h-72 bg-gray-200 overflow-hidden">
                       <img
-                        src={`/uploads/photos/${photo.id}.${photo.fileExt || 'jpg'}`}
+                        src={photo.imageUrl}
                         alt={photo.caption}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                       />
@@ -98,7 +113,7 @@ export default function GalleryPage() {
             <div className="bg-white rounded-lg overflow-hidden max-w-3xl w-full transform transition-all duration-300 scale-100 animate-slideIn" onClick={(e) => e.stopPropagation()}>
               <div className="relative">
                 <img
-                  src={`/uploads/photos/${selectedPhoto.id}.${selectedPhoto.fileExt || 'jpg'}`}
+                  src={selectedPhoto.imageUrl}
                   alt={selectedPhoto.caption}
                   className="w-full h-auto max-h-96 object-cover"
                 />

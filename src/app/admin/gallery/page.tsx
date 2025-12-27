@@ -27,7 +27,12 @@ export default function ManageGalleryPage() {
         const response = await fetch('/api/albums');
         if (response.ok) {
           const albumsData = await response.json();
-          if (albumsData.length === 0) {
+          // Ensure all albums have photos array
+          const albumsWithPhotos = albumsData.map((album: any) => ({
+            ...album,
+            photos: album.photos || []
+          }));
+          if (albumsWithPhotos.length === 0) {
             // Create default album if none exist
             const createRes = await fetch('/api/albums', {
               method: 'POST',
@@ -36,12 +41,13 @@ export default function ManageGalleryPage() {
             });
             if (createRes.ok) {
               const newAlbum = await createRes.json();
-              setAlbums([newAlbum]);
-              setSelectedAlbum(newAlbum);
+              const defaultAlbumWithPhotos = { ...newAlbum, photos: [] };
+              setAlbums([defaultAlbumWithPhotos]);
+              setSelectedAlbum(defaultAlbumWithPhotos);
             }
           } else {
-            setAlbums(albumsData);
-            setSelectedAlbum(albumsData[0]);
+            setAlbums(albumsWithPhotos);
+            setSelectedAlbum(albumsWithPhotos[0]);
           }
         }
       } catch (error) {
@@ -50,8 +56,12 @@ export default function ManageGalleryPage() {
         const stored = localStorage.getItem('albums');
         if (stored) {
           const albumsData = JSON.parse(stored);
-          setAlbums(albumsData);
-          setSelectedAlbum(albumsData[0] || null);
+          const albumsWithPhotos = albumsData.map((album: any) => ({
+            ...album,
+            photos: album.photos || []
+          }));
+          setAlbums(albumsWithPhotos);
+          setSelectedAlbum(albumsWithPhotos[0] || null);
         } else {
           const defaultAlbum = { id: 'offline', name: 'All Photos', photos: [] };
           setAlbums([defaultAlbum]);
@@ -124,8 +134,8 @@ export default function ManageGalleryPage() {
 
   const handleUploadPhoto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!preview || !caption.trim() || !selectedAlbum) {
-      alert('Please select an image, enter a caption, and select an album');
+    if (!preview || !selectedAlbum) {
+      alert('Please select an image and an album');
       return;
     }
     try {
@@ -135,28 +145,40 @@ export default function ManageGalleryPage() {
       // Create FormData for server upload
       const formData = new FormData();
       formData.append('file', blob, 'photo.jpg');
-      formData.append('caption', caption.trim());
-      formData.append('albumId', selectedAlbum.id);
-      // Upload to server (should update albums.json and upload file)
-      // This is a placeholder, you need to update your API to handle albums
-      // For now, just update local state for demo
+      formData.append('caption', caption.trim() || 'Untitled');
+      formData.append('albumId', selectedAlbum.id.toString());
+      
+      // Upload to API
+      const uploadResponse = await fetch('/api/photos', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        console.error('Upload error response:', errorData);
+        throw new Error(errorData.error || 'Failed to upload photo');
+      }
+      
+      const uploadedPhoto = await uploadResponse.json();
+      
       const newPhoto = {
-        id: Date.now().toString(),
-        caption: caption.trim(),
-        fileExt: 'jpg',
-        uploadedAt: new Date().toLocaleDateString(),
+        id: uploadedPhoto.id || Date.now().toString(),
+        caption: caption.trim() || 'Untitled',
+        fileExt: uploadedPhoto.fileExt || 'jpg',
+        uploadedAt: uploadedPhoto.uploadedAt || new Date().toLocaleDateString(),
       };
+      
       const updatedAlbums = albums.map((album) =>
         album.id === selectedAlbum.id
-          ? { ...album, photos: [newPhoto, ...album.photos] }
+          ? { ...album, photos: [newPhoto, ...(album.photos || [])] }
           : album
       );
       setAlbums(updatedAlbums);
-      setSelectedAlbum({ ...selectedAlbum, photos: [newPhoto, ...selectedAlbum.photos] });
+      setSelectedAlbum({ ...selectedAlbum, photos: [newPhoto, ...(selectedAlbum.photos || [])] });
       setPreview(null);
       setCaption('');
       showSuccess('Photo added to album successfully!');
-      // TODO: Save updatedAlbums to server (albums.json)
     } catch (error) {
       alert('Failed to upload photo. Please try again.');
       console.error('Upload error:', error);
@@ -168,13 +190,12 @@ export default function ManageGalleryPage() {
     if (confirm('Are you sure you want to delete this photo?')) {
       const updatedAlbums = albums.map((album) =>
         album.id === selectedAlbum.id
-          ? { ...album, photos: album.photos.filter((p: any) => p.id !== id) }
+          ? { ...album, photos: (album.photos || []).filter((p: any) => p.id !== id) }
           : album
       );
       setAlbums(updatedAlbums);
-      setSelectedAlbum({ ...selectedAlbum, photos: selectedAlbum.photos.filter((p: any) => p.id !== id) });
+      setSelectedAlbum({ ...selectedAlbum, photos: (selectedAlbum.photos || []).filter((p: any) => p.id !== id) });
       showSuccess('Photo deleted successfully!');
-      // TODO: Save updatedAlbums to server (albums.json)
     }
   };
 
@@ -182,29 +203,6 @@ export default function ManageGalleryPage() {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(''), 3000);
   };
-
-  // Save albums to server whenever they change
-  useEffect(() => {
-    if (albums.length > 0 && !loading) {
-      // Save to localStorage as fallback
-      localStorage.setItem('albums', JSON.stringify(albums));
-      
-      // Sync albums to server
-      albums.forEach(async (album) => {
-        if (album.id && !album.id.startsWith('offline')) {
-          try {
-            await fetch(`/api/albums/${album.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ name: album.name, photos: album.photos })
-            });
-          } catch (error) {
-            console.error('Error syncing album:', error);
-          }
-        }
-      });
-    }
-  }, [albums, loading]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-orange-50 to-yellow-50 pt-20 pb-12">
@@ -425,9 +423,9 @@ export default function ManageGalleryPage() {
               <div className="lg:col-span-2">
                 <div className="bg-white rounded-xl shadow-lg p-8">
                   <h2 className="text-2xl font-bold text-amber-900 mb-6">
-                    {selectedAlbum ? `${selectedAlbum.name} Photos (${selectedAlbum.photos.length})` : 'Select an album'}
+                    {selectedAlbum ? `${selectedAlbum.name} Photos (${(selectedAlbum.photos || []).length})` : 'Select an album'}
                   </h2>
-                  {selectedAlbum && selectedAlbum.photos.length === 0 ? (
+                  {selectedAlbum && (!selectedAlbum.photos || selectedAlbum.photos.length === 0) ? (
                     <div className="text-center py-12">
                       <div className="text-5xl mb-4">🖼️</div>
                       <p className="text-xl text-gray-600 font-semibold">No photos yet</p>
@@ -435,7 +433,7 @@ export default function ManageGalleryPage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {selectedAlbum && selectedAlbum.photos.map((photo: any) => (
+                      {selectedAlbum && selectedAlbum.photos && selectedAlbum.photos.map((photo: any) => (
                         <div
                           key={photo.id}
                           className="rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow border-2 border-amber-100"

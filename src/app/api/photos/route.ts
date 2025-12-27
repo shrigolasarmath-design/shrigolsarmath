@@ -25,35 +25,90 @@ export async function GET() {
   try {
     const { data: photos, error } = await supabase
       .from('photos')
-      .select('*');
+      .select('*')
+      .order('uploaded_at', { ascending: false });
+
+    console.log('GET /api/photos - Raw response:', { photosCount: photos?.length, error });
 
     if (error) {
       console.error('Error fetching photos:', error);
-      return Response.json({ error: 'Failed to load photos' }, { status: 500 });
+      return Response.json({ error: 'Failed to load photos', details: error }, { status: 500 });
     }
 
-    return Response.json(photos);
+    if (!photos) {
+      console.warn('GET /api/photos - No photos returned from database');
+      return Response.json([]);
+    }
+
+    // Format photos for frontend
+    const formattedPhotos = photos.map(photo => {
+      let imageUrl: string;
+      
+      if (process.env.NODE_ENV === 'production') {
+        // In production, use API endpoint to retrieve from Blobs using blob_key
+        imageUrl = `/api/photos/${photo.id}/image`;
+      } else {
+        // In development, serve directly from public directory
+        // Use file_path (has full path), or blob_key with prefix
+        let filePath = photo.file_path;
+        
+        if (!filePath && photo.blob_key) {
+          filePath = `/uploads/photos/${photo.blob_key}`;
+        }
+        
+        imageUrl = filePath || '/placeholder.jpg';
+      }
+
+      return {
+        id: photo.id,
+        imageUrl: imageUrl,
+        caption: photo.caption || 'Untitled',
+        uploadedAt: photo.uploaded_at
+      };
+    });
+
+    console.log('GET /api/photos - Formatted response count:', formattedPhotos.length);
+    return Response.json(formattedPhotos);
   } catch (error) {
     console.error('Unexpected error loading photos:', error);
-    return Response.json({ error: 'Failed to load photos' }, { status: 500 });
+    return Response.json({ error: 'Failed to load photos', details: String(error) }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  if (!supabase) {
+    return Response.json({ error: 'Supabase not configured' }, { status: 500 });
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const caption = formData.get('caption') as string;
+    const albumId = formData.get('albumId') as string;
 
     if (!file) {
       return Response.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    if (!albumId) {
+      return Response.json({ error: 'Album ID is required' }, { status: 400 });
+    }
+
     const fileExt = file.type.split('/')[1] || 'jpg';
     const photoId = Date.now().toString();
     const buffer = await file.arrayBuffer();
-
-    if (isDev) {
+    
+    // Store file and track key
+    const storageKey = `${photoId}.${fileExt}`;  // Just the filename for blob storage
+    const filePath = `/uploads/photos/${storageKey}`;  // Full path for development fallback
+    
+    if (process.env.NODE_ENV === 'production') {
+      const { getStore } = await import('@netlify/blobs');
+      const store = getStore('temple-photos');
+      await store.set(storageKey, buffer, {
+        metadata: { contentType: file.type }
+      });
+    } else {
       // In development, save to file system
       const { writeFile } = await import('fs/promises');
       const { join } = await import('path');
@@ -64,63 +119,76 @@ export async function POST(request: Request) {
         mkdirSync(STORAGE_DIR, { recursive: true });
       }
       
-      const imagePath = join(STORAGE_DIR, `${photoId}.${fileExt}`);
+      const imagePath = join(STORAGE_DIR, storageKey);
       await writeFile(imagePath, Buffer.from(buffer));
-      
-      const photoData: PhotoData = {
-        id: photoId,
-        caption,
-        fileExt,
-        uploadedAt: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
-      };
-      
-      devPhotos.push(photoData);
-      
-      return Response.json({
-        id: photoId,
-        caption,
-        uploadedAt: photoData.uploadedAt,
-        imageUrl: `/uploads/photos/${photoId}.${fileExt}`
-      });
-    } else {
-      // In production, use Netlify Blobs
-      const { getStore } = await import('@netlify/blobs');
-      const store = getStore('temple-photos');
-      
-      // Save image data
-      await store.set(`photo-${photoId}`, buffer, {
-        metadata: { contentType: file.type }
-      });
-      
-      // Update index
-      let photosIndex = await store.get('index', { type: 'json' }) as PhotoData[] | null;
-      if (!photosIndex) photosIndex = [];
-      
-      const photoData: PhotoData = {
-        id: photoId,
-        caption,
-        fileExt,
-        uploadedAt: new Date().toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        }),
-      };
-      
-      photosIndex.push(photoData);
-      await store.setJSON('index', photosIndex);
-      
-      return Response.json({
-        id: photoId,
-        caption,
-        uploadedAt: photoData.uploadedAt,
-        imageUrl: `/api/photos/${photoId}`
-      });
     }
+
+    // Insert photo record into database with both blob_key and file_path
+    const insertData: any = {
+      album_id: parseInt(albumId),
+      blob_key: storageKey,  // For production Blobs
+      file_path: filePath,   // For development filesystem
+      uploaded_at: new Date().toISOString()
+    };
+
+    if (caption) {
+      insertData.caption = caption;
+    }
+
+    let photo = null;
+    let insertError = null;
+
+    // Try with both columns
+    const { data: photoData, error } = await supabase
+      .from('photos')
+      .insert([insertData])
+      .select()
+      .single();
+
+    if (error) {
+      // If error is about blob_key or caption column, try without them
+      if (error.message && (error.message.includes('caption') || error.message.includes('blob_key'))) {
+        console.log('Retrying insert without optional columns');
+        const { data: photoRetry, error: retryError } = await supabase
+          .from('photos')
+          .insert([{
+            album_id: parseInt(albumId),
+            file_path: filePath,
+            uploaded_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (retryError) {
+          console.error('Error saving photo (retry):', retryError);
+          insertError = retryError;
+        } else {
+          photo = photoRetry;
+        }
+      } else {
+        console.error('Error saving photo:', error);
+        insertError = error;
+      }
+    } else {
+      photo = photoData;
+    }
+
+    if (!photo || insertError) {
+      const errorMsg = insertError?.message || 'Failed to save photo';
+      return Response.json({ error: errorMsg }, { status: 500 });
+    }
+
+    return Response.json({
+      id: photo.id,
+      caption: caption || 'Untitled',
+      fileExt,
+      uploadedAt: new Date().toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }),
+      imageUrl: filePath
+    }, { status: 201 });
   } catch (error) {
     console.error('Photo upload error:', error);
     return Response.json({ error: 'Upload failed: ' + (error as Error).message }, { status: 500 });
@@ -128,35 +196,68 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  if (!supabase) {
+    return Response.json({ error: 'Supabase not configured' }, { status: 500 });
+  }
+
   try {
     const { photoId } = await request.json();
 
-    if (isDev) {
-      // In development, remove from in-memory storage and file system
-      devPhotos = devPhotos.filter(p => p.id !== photoId);
-      
-      const { unlink } = await import('fs/promises');
-      const { join } = await import('path');
-      const imagePath = join(process.cwd(), 'public/uploads/photos', `${photoId}.jpg`);
-      try {
-        await unlink(imagePath);
-      } catch {
-        // File might not exist
+    // Get photo to find storage key
+    const { data: photo, error: fetchError } = await supabase
+      .from('photos')
+      .select('blob_key, file_path')
+      .eq('id', photoId)
+      .single();
+
+    if (fetchError || !photo) {
+      console.error('Photo not found:', fetchError);
+      return Response.json({ error: 'Photo not found' }, { status: 404 });
+    }
+
+    // Use blob_key (production) or extract filename from file_path (development/legacy)
+    let filename: string | undefined;
+    
+    if (photo.blob_key) {
+      filename = photo.blob_key;
+    } else if (photo.file_path) {
+      // Extract filename from full path like "/uploads/photos/1766858625550.png"
+      filename = photo.file_path.split('/').pop();
+    }
+    
+    if (filename) {
+      if (process.env.NODE_ENV === 'production') {
+        try {
+          const { getStore } = await import('@netlify/blobs');
+          const store = getStore('temple-photos');
+          await store.delete(filename);
+        } catch (blobError) {
+          console.warn('Failed to delete blob:', blobError);
+          // Continue with database deletion even if blob deletion fails
+        }
+      } else {
+        // In development, delete from filesystem
+        try {
+          const { unlink } = await import('fs/promises');
+          const { join } = await import('path');
+          const imagePath = join(process.cwd(), 'public/uploads/photos', filename);
+          await unlink(imagePath);
+        } catch (fsError) {
+          console.warn('Failed to delete file:', fsError);
+          // Continue with database deletion even if file deletion fails
+        }
       }
-    } else {
-      // In production, use Netlify Blobs
-      const { getStore } = await import('@netlify/blobs');
-      const store = getStore('temple-photos');
-      
-      // Remove from index
-      let photosIndex = await store.get('index', { type: 'json' }) as PhotoData[] | null;
-      if (photosIndex) {
-        photosIndex = photosIndex.filter(p => p.id !== photoId);
-        await store.setJSON('index', photosIndex);
-      }
-      
-      // Remove image data
-      await store.delete(`photo-${photoId}`);
+    }
+
+    // Delete from database
+    const { error } = await supabase
+      .from('photos')
+      .delete()
+      .eq('id', photoId);
+
+    if (error) {
+      console.error('Error deleting photo from database:', error);
+      return Response.json({ error: 'Failed to delete photo' }, { status: 500 });
     }
 
     return Response.json({ success: true });

@@ -1,28 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+let supabase: any = null;
 
-const supabase = supabaseUrl && supabaseKey 
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
+try {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (supabaseUrl && supabaseKey) {
+    supabase = createClient(supabaseUrl, supabaseKey);
+  }
+} catch (error) {
+  console.error('Failed to initialize Supabase:', error);
+}
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!supabase) {
+    console.error('Supabase not initialized');
     return Response.json({ error: 'Supabase not configured' }, { status: 500 });
   }
 
   try {
     const { id } = await params;
-    const { name, photos } = await request.json();
+    const { name } = await request.json();
 
     const { data: album, error } = await supabase
       .from('albums')
-      .update({ name, photos })
+      .update({ name })
       .eq('id', id)
       .select()
       .single();
@@ -44,6 +51,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   if (!supabase) {
+    console.error('Supabase not initialized');
     return Response.json({ error: 'Supabase not configured' }, { status: 500 });
   }
 

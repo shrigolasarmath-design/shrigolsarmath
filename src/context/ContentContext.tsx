@@ -246,17 +246,21 @@ export function ContentProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch('/api/photos');
         if (response.ok) {
           const serverPhotos = await response.json();
+          console.log('Fetched photos from API:', serverPhotos);
           // Convert server response to Photo format
           const photosData = serverPhotos.map((p: any) => ({
             id: p.id,
-            imageData: p.imageData || p.imageUrl, // Handle both dev and prod responses
-            caption: p.caption,
-            uploadedAt: p.uploadedAt,
+            imageData: p.imageUrl || p.imageData, // imageUrl is the file path returned from our API
+            caption: p.caption || 'Untitled',
+            uploadedAt: p.uploadedAt || new Date().toLocaleDateString(),
           }));
+          console.log('Processed photos:', photosData);
           setPhotos(photosData);
+        } else {
+          console.error('Failed to fetch photos:', response.status, await response.text());
         }
       } catch (error) {
-        console.error('Failed to load photos from server');
+        console.error('Failed to load photos from server:', error);
       }
 
       // Load all other content from server
