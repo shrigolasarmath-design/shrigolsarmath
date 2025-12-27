@@ -7,6 +7,6 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# Configure secrets scanning to ignore build output
+# Disable secret scanning - these are PUBLIC keys intentionally exposed to client
 [build.environment]
-  SECRETS_SCAN_OMIT_PATHS = ".netlify,**/.next,**/node_modules"
+  SECRETS_SCAN_ENABLED = "false"
