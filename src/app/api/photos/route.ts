@@ -101,93 +101,59 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Album ID is required' }, { status: 400 });
     }
 
+
     const fileExt = file.type.split('/')[1] || 'jpg';
     const photoId = Date.now().toString();
     const buffer = await file.arrayBuffer();
-    
+
     // Store file and track key
-    const storageKey = `${photoId}.${fileExt}`;  // Just the filename for blob storage
-    const filePath = `/uploads/photos/${storageKey}`;  // Full path for development fallback
-    
+    const storageKey = `${photoId}.${fileExt}`;  // This is your blob_key
+    const filePath = `/uploads/photos/${storageKey}`;  // For dev fallback
+
     if (process.env.NODE_ENV === 'production') {
       const { getStore } = await import('@netlify/blobs');
       const store = getStore('temple-photos');
       await store.set(storageKey, buffer, {
         metadata: { contentType: file.type }
       });
+      console.log('Netlify Blobs: Uploaded file with key:', storageKey);
     } else {
       // In development, save to file system
       const { writeFile } = await import('fs/promises');
       const { join } = await import('path');
       const { existsSync, mkdirSync } = await import('fs');
-      
+
       const STORAGE_DIR = join(process.cwd(), 'public/uploads/photos');
       if (!existsSync(STORAGE_DIR)) {
         mkdirSync(STORAGE_DIR, { recursive: true });
       }
-      
+
       const imagePath = join(STORAGE_DIR, storageKey);
       await writeFile(imagePath, Buffer.from(buffer));
+      console.log('Dev: Saved file to:', imagePath);
     }
 
-    // Insert photo record into database with both blob_key and file_path
+    // Insert photo record into database with blob_key and file_path
     const insertData: any = {
       album_id: parseInt(albumId),
-      blob_key: storageKey,  // For production Blobs
+      blob_key: storageKey,  // This must match the key used above!
       file_path: filePath,   // For development filesystem
-      uploaded_at: new Date().toISOString()
+      uploaded_at: new Date().toISOString(),
+      caption: caption || 'Untitled'
     };
 
-    if (caption) {
-      insertData.caption = caption;
-    }
+    // Log insertData for debugging
+    console.log('POST /api/photos - inserting into Supabase:', insertData);
 
-    let photo = null;
-    let insertError = null;
-
-    // Debug: Log insertData before insert
-    console.log('POST /api/photos - insertData:', insertData);
-
-    // Try with both columns
-    const { data: photoData, error } = await supabase
+    const { data: photo, error } = await supabase
       .from('photos')
       .insert([insertData])
       .select()
       .single();
 
-    if (error) {
-      // Debug: Log error details
+    if (error || !photo) {
       console.error('POST /api/photos - Supabase insert error:', error);
-      // If error is about blob_key or caption column, try without them
-      if (error.message && (error.message.includes('caption') || error.message.includes('blob_key'))) {
-        console.log('Retrying insert without optional columns');
-        const { data: photoRetry, error: retryError } = await supabase
-          .from('photos')
-          .insert([{
-            album_id: parseInt(albumId),
-            file_path: filePath,
-            uploaded_at: new Date().toISOString()
-          }])
-          .select()
-          .single();
-
-        if (retryError) {
-          console.error('Error saving photo (retry):', retryError);
-          insertError = retryError;
-        } else {
-          photo = photoRetry;
-        }
-      } else {
-        console.error('Error saving photo:', error);
-        insertError = error;
-      }
-    } else {
-      photo = photoData;
-    }
-
-    if (!photo || insertError) {
-      const errorMsg = insertError?.message || 'Failed to save photo';
-      return Response.json({ error: errorMsg }, { status: 500 });
+      return Response.json({ error: error?.message || 'Failed to save photo' }, { status: 500 });
     }
 
     // Guarantee blob_key is present in production
