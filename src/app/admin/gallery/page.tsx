@@ -185,17 +185,35 @@ export default function ManageGalleryPage() {
     }
   };
 
-  const handleDeletePhoto = (id: string) => {
+  const handleDeletePhoto = async (id: string) => {
     if (!selectedAlbum) return;
     if (confirm('Are you sure you want to delete this photo?')) {
-      const updatedAlbums = albums.map((album) =>
-        album.id === selectedAlbum.id
-          ? { ...album, photos: (album.photos || []).filter((p: any) => p.id !== id) }
-          : album
-      );
-      setAlbums(updatedAlbums);
-      setSelectedAlbum({ ...selectedAlbum, photos: (selectedAlbum.photos || []).filter((p: any) => p.id !== id) });
-      showSuccess('Photo deleted successfully!');
+      try {
+        // Call API to delete the photo
+        const deleteResponse = await fetch('/api/photos', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ photoId: id })
+        });
+
+        if (!deleteResponse.ok) {
+          const errorData = await deleteResponse.json();
+          throw new Error(errorData.error || 'Failed to delete photo');
+        }
+
+        // Update local state after successful deletion
+        const updatedAlbums = albums.map((album) =>
+          album.id === selectedAlbum.id
+            ? { ...album, photos: (album.photos || []).filter((p: any) => p.id !== id) }
+            : album
+        );
+        setAlbums(updatedAlbums);
+        setSelectedAlbum({ ...selectedAlbum, photos: (selectedAlbum.photos || []).filter((p: any) => p.id !== id) });
+        showSuccess('Photo deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting photo:', error);
+        alert('Failed to delete photo. Please try again.');
+      }
     }
   };
 
@@ -439,7 +457,7 @@ export default function ManageGalleryPage() {
                           className="rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow border-2 border-amber-100"
                         >
                           <img
-                            src={`/uploads/photos/${photo.id}.${photo.fileExt || 'jpg'}`}
+                            src={photo.imageUrl || `/api/photos/${photo.id}/image`}
                             alt={photo.caption}
                             className="w-full h-48 object-cover"
                           />

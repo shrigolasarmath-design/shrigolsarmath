@@ -32,24 +32,16 @@ export async function GET(
       return new Response('Photo not found', { status: 404 });
     }
 
-    console.log('Photo found in database:', { id: photoId, blob_key: photo.blob_key, file_path: photo.file_path });
+    console.log('Photo found in database:', { id: photoId, blob_key: photo.blob_key });
 
-    // Use blob_key (production) or extract filename from file_path (development/legacy)
-    let filename: string | undefined;
-    
-    if (photo.blob_key) {
-      filename = photo.blob_key;
-      console.log('Using blob_key as filename:', filename);
-    } else if (photo.file_path) {
-      // Extract filename from full path like "/uploads/photos/1766858625550.png"
-      filename = photo.file_path.split('/').pop();
-      console.log('Using extracted filename from file_path:', filename);
+    // Always use blob_key
+    if (!photo.blob_key) {
+      console.error('Photo missing blob_key - Photo ID:', photoId);
+      return new Response('Photo blob_key not found', { status: 400 });
     }
 
-    if (!filename) {
-      console.error('No filename available for photo:', photoId);
-      return new Response('Invalid file path', { status: 400 });
-    }
+    const filename = photo.blob_key;
+    console.log('Using blob_key as filename:', filename);
 
     if (process.env.NODE_ENV === 'production') {
       // Retrieve from Netlify Blobs
@@ -67,9 +59,8 @@ export async function GET(
       }
       
       if (!data) {
-        console.warn('Blob not found in Netlify Blobs for filename:', filename);
-        console.warn('Photo record - blob_key:', photo.blob_key, 'file_path:', photo.file_path);
-        return new Response('Image not available in Netlify Blobs', { status: 404 });
+        console.warn('Blob not found in Netlify Blobs for blob_key:', filename);
+        return new Response('Image not available', { status: 404 });
       }
       
       console.log('Successfully retrieved blob from Netlify Blobs - Size:', (data as ArrayBuffer).byteLength, 'bytes');

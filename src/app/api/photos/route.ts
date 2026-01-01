@@ -40,35 +40,22 @@ export async function GET() {
       return Response.json([]);
     }
 
-    // Format photos for frontend
+    // Format photos for frontend - always use blob_key endpoint
     const formattedPhotos = photos.map(photo => {
-      let imageUrl: string;
-      
-      if (process.env.NODE_ENV === 'production') {
-        // In production, only use API endpoint if blob_key exists
-        // Old photos without blob_key won't show (they need to be re-uploaded)
-        if (photo.blob_key) {
-          imageUrl = `/api/photos/${photo.id}/image`;
-        } else {
-          // Old photo - no blob_key, can't serve in production
-          imageUrl = '/placeholder.jpg';
-          console.warn(`Photo ${photo.id} missing blob_key - needs to be re-uploaded for production`);
-        }
-      } else {
-        // In development, serve directly from public directory
-        // Use file_path (has full path), or blob_key with prefix
-        let filePath = photo.file_path;
-        
-        if (!filePath && photo.blob_key) {
-          filePath = `/uploads/photos/${photo.blob_key}`;
-        }
-        
-        imageUrl = filePath || '/placeholder.jpg';
+      // Check if photo has blob_key (should have one)
+      if (!photo.blob_key) {
+        console.warn(`Photo ${photo.id} missing blob_key - needs to be re-uploaded`);
+        return {
+          id: photo.id,
+          imageUrl: '/placeholder.jpg',
+          caption: photo.caption || 'Untitled',
+          uploadedAt: photo.uploaded_at
+        };
       }
 
       return {
         id: photo.id,
-        imageUrl: imageUrl,
+        imageUrl: `/api/photos/${photo.id}/image`,
         caption: photo.caption || 'Untitled',
         uploadedAt: photo.uploaded_at
       };
@@ -106,17 +93,17 @@ export async function POST(request: Request) {
     const photoId = Date.now().toString();
     const buffer = await file.arrayBuffer();
 
-    // Store file and track key
-    const storageKey = `${photoId}.${fileExt}`;  // This is your blob_key
-    const filePath = `/uploads/photos/${storageKey}`;  // For dev fallback
+    // Create blob_key for storing the file
+    const blobKey = `${photoId}.${fileExt}`;
 
     if (process.env.NODE_ENV === 'production') {
+      // In production, use Netlify Blobs
       const { getStore } = await import('@netlify/blobs');
       const store = getStore('temple-photos');
-      await store.set(storageKey, buffer, {
+      await store.set(blobKey, buffer, {
         metadata: { contentType: file.type }
       });
-      console.log('Netlify Blobs: Uploaded file with key:', storageKey);
+      console.log('Netlify Blobs: Uploaded file with key:', blobKey);
     } else {
       // In development, save to file system
       const { writeFile } = await import('fs/promises');
@@ -128,16 +115,15 @@ export async function POST(request: Request) {
         mkdirSync(STORAGE_DIR, { recursive: true });
       }
 
-      const imagePath = join(STORAGE_DIR, storageKey);
+      const imagePath = join(STORAGE_DIR, blobKey);
       await writeFile(imagePath, Buffer.from(buffer));
       console.log('Dev: Saved file to:', imagePath);
     }
 
-    // Insert photo record into database with blob_key and file_path
+    // Insert photo record into database with blob_key
     const insertData: any = {
       album_id: parseInt(albumId),
-      blob_key: storageKey,  // This must match the key used above!
-      file_path: filePath,   // For development filesystem
+      blob_key: blobKey,
       uploaded_at: new Date().toISOString(),
       caption: caption || 'Untitled'
     };
@@ -156,12 +142,10 @@ export async function POST(request: Request) {
       return Response.json({ error: error?.message || 'Failed to save photo' }, { status: 500 });
     }
 
-    // Guarantee blob_key is present in production
-    if (process.env.NODE_ENV === 'production') {
-      if (!photo.blob_key) {
-        console.error('POST /api/photos - blob_key missing after insert:', photo);
-        return Response.json({ error: 'Photo upload failed: blob_key not stored in database.' }, { status: 500 });
-      }
+    // Verify blob_key is present
+    if (!photo.blob_key) {
+      console.error('POST /api/photos - blob_key missing after insert:', photo);
+      return Response.json({ error: 'Photo upload failed: blob_key not stored in database.' }, { status: 500 });
     }
 
     return Response.json({
@@ -173,7 +157,7 @@ export async function POST(request: Request) {
         month: 'long',
         day: 'numeric',
       }),
-      imageUrl: process.env.NODE_ENV === 'production' ? `/api/photos/${photo.id}/image` : filePath
+      imageUrl: `/api/photos/${photo.id}/image`
     }, { status: 201 });
   } catch (error) {
     console.error('Photo upload error:', error);
@@ -189,10 +173,10 @@ export async function DELETE(request: Request) {
   try {
     const { photoId } = await request.json();
 
-    // Get photo to find storage key
+    // Get photo to find blob_key
     const { data: photo, error: fetchError } = await supabase
       .from('photos')
-      .select('blob_key, file_path')
+      .select('blob_key')
       .eq('id', photoId)
       .single();
 
@@ -201,24 +185,18 @@ export async function DELETE(request: Request) {
       return Response.json({ error: 'Photo not found' }, { status: 404 });
     }
 
-    // Use blob_key (production) or extract filename from file_path (development/legacy)
-    let filename: string | undefined;
-    
+    console.log('Deleting photo:', photoId, 'with blob_key:', photo.blob_key);
+
+    // Delete from blob storage first
     if (photo.blob_key) {
-      filename = photo.blob_key;
-    } else if (photo.file_path) {
-      // Extract filename from full path like "/uploads/photos/1766858625550.png"
-      filename = photo.file_path.split('/').pop();
-    }
-    
-    if (filename) {
       if (process.env.NODE_ENV === 'production') {
         try {
           const { getStore } = await import('@netlify/blobs');
           const store = getStore('temple-photos');
-          await store.delete(filename);
+          await store.delete(photo.blob_key);
+          console.log('Deleted blob from Netlify Blobs:', photo.blob_key);
         } catch (blobError) {
-          console.warn('Failed to delete blob:', blobError);
+          console.warn('Failed to delete blob from Netlify Blobs:', blobError);
           // Continue with database deletion even if blob deletion fails
         }
       } else {
@@ -226,29 +204,31 @@ export async function DELETE(request: Request) {
         try {
           const { unlink } = await import('fs/promises');
           const { join } = await import('path');
-          const imagePath = join(process.cwd(), 'public/uploads/photos', filename);
+          const imagePath = join(process.cwd(), 'public/uploads/photos', photo.blob_key);
           await unlink(imagePath);
+          console.log('Deleted file from filesystem:', imagePath);
         } catch (fsError) {
-          console.warn('Failed to delete file:', fsError);
+          console.warn('Failed to delete file from filesystem:', fsError);
           // Continue with database deletion even if file deletion fails
         }
       }
     }
 
     // Delete from database
-    const { error } = await supabase
+    const { error: deleteError } = await supabase
       .from('photos')
       .delete()
       .eq('id', photoId);
 
-    if (error) {
-      console.error('Error deleting photo from database:', error);
-      return Response.json({ error: 'Failed to delete photo' }, { status: 500 });
+    if (deleteError) {
+      console.error('Error deleting photo from database:', deleteError);
+      return Response.json({ error: 'Failed to delete photo: ' + deleteError.message }, { status: 500 });
     }
 
+    console.log('Successfully deleted photo:', photoId);
     return Response.json({ success: true });
   } catch (error) {
     console.error('Delete error:', error);
-    return Response.json({ error: 'Delete failed' }, { status: 500 });
+    return Response.json({ error: 'Delete failed: ' + (error as Error).message }, { status: 500 });
   }
 }

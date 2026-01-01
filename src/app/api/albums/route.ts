@@ -45,20 +45,10 @@ export async function GET() {
           return { ...album, photos: [] };
         }
 
-        // Format photos for frontend
+        // Format photos for frontend - always use blob_key endpoint
         const formattedPhotos = (photos || []).map((photo: any) => {
-          let imageUrl: string;
-          
-          if (process.env.NODE_ENV === 'production') {
-            imageUrl = `/api/photos/${photo.id}/image`;
-          } else {
-            // In development, serve directly from public directory
-            let filePath = photo.file_path;
-            if (!filePath && photo.blob_key) {
-              filePath = `/uploads/photos/${photo.blob_key}`;
-            }
-            imageUrl = filePath || '/placeholder.jpg';
-          }
+          // Always use the API endpoint which will fetch from blob_key
+          const imageUrl = `/api/photos/${photo.id}/image`;
 
           return {
             id: photo.id,
