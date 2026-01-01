@@ -72,7 +72,7 @@ export async function GET(
         return new Response('Image not available in Netlify Blobs', { status: 404 });
       }
       
-      console.log('Successfully retrieved blob from Netlify Blobs - Size:', data.length, 'bytes');
+      console.log('Successfully retrieved blob from Netlify Blobs - Size:', (data as ArrayBuffer).byteLength, 'bytes');
 
       // Determine content type from filename
       const contentType = filename.endsWith('.png') 

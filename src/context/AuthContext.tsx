@@ -156,51 +156,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const sendOtp = async (phone: string) => {
-    try {
-      const response = await fetch('/api/otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone }),
-      });
-
-      if (!response.ok) {
-        console.error('Failed to send OTP:', await response.json());
-        return false;
-      }
-
-      console.log('OTP sent successfully');
-      return true;
-    } catch (error) {
-      console.error('Error sending OTP:', error);
-      return false;
-    }
+  const sendOtp = async () => {
+    console.log('OTP functionality is disabled.');
+    return true;
   };
 
-  const verifyOtp = useCallback(async (phone: string, otp: string) => {
-    try {
-      const response = await fetch('/api/otp/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp }),
-      });
-
-      console.log('OTP verification response:', response);
-      if (response.ok) {
-        console.log('OTP verified successfully, setting logged in state');
-        setLoggedIn(true);
-        console.log('Admin successfully logged in after OTP verification');
-        router.push('/admin/dashboard');
-        return true;
-      } else {
-        console.error('Failed OTP verification:', await response.json());
-        return false;
-      }
-    } catch (error) {
-      console.error('Error during OTP verification:', error);
-      return false;
-    }
-  }, [setLoggedIn, router]);
+  const verifyOtp = async () => {
+    console.log('OTP functionality is disabled.');
+    return true;
+  };
 
   return (
     <AuthContext.Provider value={{ isLoggedIn, authLoaded: mounted, isUserLoggedIn, login, loginUser, logout, logoutUser, setLoggedIn, sendOtp, verifyOtp }}>
