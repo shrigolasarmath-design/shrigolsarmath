@@ -183,7 +183,7 @@ const defaultSevaSection: SevaSection = {
 };
 
 const defaultTempleBoxes: TempleBoxes = {
-  box1Title: '🙏 Our Spiritual Mission',
+  box1Title: '🙏 Our Spiritual Mission!!',
   box1Content: 'We are dedicated to preserving and promoting spiritual traditions while creating a welcoming sanctuary for all devotees seeking divine blessings and inner peace.',
   box2Title: '✨ Our Sacred Values',
   box2Content: 'Faith, devotion, and compassion guide everything we do. We believe in the power of unity, collective worship, and serving our community with love and respect.',
