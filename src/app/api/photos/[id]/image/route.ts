@@ -83,8 +83,8 @@ export async function GET(
         }
       });
     } else {
-      // In development, just redirect to the static file
-      return Response.redirect(`/uploads/photos/${filename}`, 301);
+      // In development, ensure blob_key is used
+      return new Response('Static path usage removed. Ensure blob_key is used.', { status: 500 });
     }
   } catch (error) {
     console.error('Error retrieving image:', error);
