@@ -18,6 +18,8 @@ export async function GET(
   try {
     const { id: photoId } = await params;
 
+    console.log('Fetching photo image - Photo ID:', photoId);
+
     // Get photo metadata from database
     const { data: photo, error } = await supabase
       .from('photos')
@@ -26,21 +28,26 @@ export async function GET(
       .single();
 
     if (error || !photo) {
-      console.error('Photo not found:', error);
+      console.error('Photo not found in database - Photo ID:', photoId, 'Error:', error);
       return new Response('Photo not found', { status: 404 });
     }
+
+    console.log('Photo found in database:', { id: photoId, blob_key: photo.blob_key, file_path: photo.file_path });
 
     // Use blob_key (production) or extract filename from file_path (development/legacy)
     let filename: string | undefined;
     
     if (photo.blob_key) {
       filename = photo.blob_key;
+      console.log('Using blob_key as filename:', filename);
     } else if (photo.file_path) {
       // Extract filename from full path like "/uploads/photos/1766858625550.png"
       filename = photo.file_path.split('/').pop();
+      console.log('Using extracted filename from file_path:', filename);
     }
 
     if (!filename) {
+      console.error('No filename available for photo:', photoId);
       return new Response('Invalid file path', { status: 400 });
     }
 
@@ -49,13 +56,23 @@ export async function GET(
       const { getStore } = await import('@netlify/blobs');
       const store = getStore('temple-photos');
       
-      const data = await store.get(filename);
+      console.log('Fetching blob from Netlify Blobs - Photo ID:', photoId, 'Filename:', filename);
+      
+      let data;
+      try {
+        data = await store.get(filename);
+      } catch (blobError) {
+        console.error('Netlify Blobs Error - Filename:', filename, 'Error:', blobError);
+        return new Response(`Netlify Blobs Error: ${(blobError as Error).message}`, { status: 500 });
+      }
       
       if (!data) {
-        // Photo wasn't stored in Blobs (likely old photo from dev)
-        console.warn('Blob not found for:', filename, '- Photo may need to be re-uploaded');
-        return new Response('Image not available - please re-upload photo', { status: 404 });
+        console.warn('Blob not found in Netlify Blobs for filename:', filename);
+        console.warn('Photo record - blob_key:', photo.blob_key, 'file_path:', photo.file_path);
+        return new Response('Image not available in Netlify Blobs', { status: 404 });
       }
+      
+      console.log('Successfully retrieved blob from Netlify Blobs - Size:', data.length, 'bytes');
 
       // Determine content type from filename
       const contentType = filename.endsWith('.png') 
