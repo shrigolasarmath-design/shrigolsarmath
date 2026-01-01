@@ -18,7 +18,9 @@ export async function GET(
   try {
     const { id: photoId } = await params;
 
-    console.log('Fetching photo image - Photo ID:', photoId);
+    console.log('=== IMAGE FETCH DEBUG ===');
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Photo ID:', photoId);
 
     // Get photo metadata from database
     const { data: photo, error } = await supabase
@@ -32,62 +34,83 @@ export async function GET(
       return new Response('Photo not found', { status: 404 });
     }
 
-    console.log('Photo found in database:', { id: photoId, blob_key: photo.blob_key });
+    console.log('Photo found:', { blob_key: photo.blob_key, file_path: photo.file_path });
 
-    // Always use blob_key
-    if (!photo.blob_key) {
-      console.error('Photo missing blob_key - Photo ID:', photoId);
-      return new Response('Photo blob_key not found', { status: 400 });
+    // Get blob_key or extract from file_path if not available
+    let filename: string | undefined = photo.blob_key;
+    
+    if (!filename && photo.file_path) {
+      // Extract filename from path like "/uploads/photos/1766858625550.png"
+      filename = photo.file_path.split('/').pop();
+      console.log('Extracted filename from file_path:', filename);
     }
 
-    const filename = photo.blob_key;
-    console.log('Using blob_key as filename:', filename);
+    if (!filename) {
+      console.error('Photo missing both blob_key and file_path - Photo ID:', photoId);
+      return new Response('Photo file not found', { status: 400 });
+    }
+
+    console.log('Using filename:', filename);
 
     if (process.env.NODE_ENV === 'production') {
-      // Retrieve from Netlify Blobs
-      const { getStore } = await import('@netlify/blobs');
-      const store = getStore('temple-photos');
+      // Retrieve from Netlify Blobs only
+      console.log('=== PRODUCTION MODE - NETLIFY BLOBS ===');
+      console.log('Photo ID:', photoId);
+      console.log('Looking for blob_key:', filename);
       
-      console.log('Fetching blob from Netlify Blobs - Photo ID:', photoId, 'Filename:', filename);
-      
-      let data;
       try {
-        data = await store.get(filename);
-      } catch (blobError) {
-        console.error('Netlify Blobs Error - Filename:', filename, 'Error:', blobError);
-        return new Response(`Netlify Blobs Error: ${(blobError as Error).message}`, { status: 500 });
-      }
-      
-      if (!data) {
-        console.warn('Blob not found in Netlify Blobs for blob_key:', filename);
-        return new Response('Image not available', { status: 404 });
-      }
-      
-      console.log('Successfully retrieved blob from Netlify Blobs - Size:', (data as ArrayBuffer).byteLength, 'bytes');
-
-      // Determine content type from filename
-      const contentType = filename.endsWith('.png') 
-        ? 'image/png'
-        : filename.endsWith('.jpg') || filename.endsWith('.jpeg')
-        ? 'image/jpeg'
-        : filename.endsWith('.gif')
-        ? 'image/gif'
-        : filename.endsWith('.webp')
-        ? 'image/webp'
-        : 'image/jpeg';
-
-      return new Response(data, {
-        headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=31536000, immutable'
+        console.log('Importing @netlify/blobs...');
+        const { getStore } = await import('@netlify/blobs');
+        console.log('@netlify/blobs imported successfully');
+        
+        console.log('Getting store: temple-photos');
+        const store = getStore('temple-photos');
+        console.log('Store obtained');
+        
+        console.log('Calling store.get() with key:', filename);
+        const data = await store.get(filename);
+        console.log('store.get() returned, data type:', typeof data, 'data exists:', !!data);
+        
+        if (!data) {
+          console.error('=== BLOB NOT FOUND ===');
+          console.error('Blob key that failed:', filename);
+          console.error('Available keys in store would need to be listed separately');
+          return new Response(JSON.stringify({ error: 'Blob not found', blobKey: filename }), { status: 404, headers: { 'Content-Type': 'application/json' } });
         }
-      });
+        
+        console.log('Blob found! Size:', (data as ArrayBuffer).byteLength, 'bytes');
+
+        // Determine content type from filename
+        const contentType = filename.endsWith('.png') 
+          ? 'image/png'
+          : filename.endsWith('.jpg') || filename.endsWith('.jpeg')
+          ? 'image/jpeg'
+          : filename.endsWith('.gif')
+          ? 'image/gif'
+          : filename.endsWith('.webp')
+          ? 'image/webp'
+          : 'image/jpeg';
+
+        console.log('Returning blob with content-type:', contentType);
+        return new Response(data, {
+          headers: {
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=31536000, immutable'
+          }
+        });
+      } catch (blobError) {
+        console.error('=== NETLIFY BLOBS EXCEPTION ===');
+        console.error('Error type:', blobError instanceof Error ? blobError.constructor.name : typeof blobError);
+        console.error('Error message:', blobError instanceof Error ? blobError.message : String(blobError));
+        console.error('Full error:', blobError);
+        return new Response(JSON.stringify({ 
+          error: 'Netlify Blobs Error', 
+          message: blobError instanceof Error ? blobError.message : String(blobError),
+          blobKey: filename
+        }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
     } else {
-      // In development, ensure blob_key is used
-      return new Response('Static path usage removed. Ensure blob_key is used.', { status: 500 });
+      // In development, serve from public directory
+      return Response.redirect(`/uploads/photos/${filename}`, 301);
     }
-  } catch (error) {
-    console.error('Error retrieving image:', error);
-    return new Response('Failed to retrieve image', { status: 500 });
-  }
 }

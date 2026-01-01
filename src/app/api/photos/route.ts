@@ -98,12 +98,26 @@ export async function POST(request: Request) {
 
     if (process.env.NODE_ENV === 'production') {
       // In production, use Netlify Blobs
-      const { getStore } = await import('@netlify/blobs');
-      const store = getStore('temple-photos');
-      await store.set(blobKey, buffer, {
-        metadata: { contentType: file.type }
-      });
-      console.log('Netlify Blobs: Uploaded file with key:', blobKey);
+      console.log('=== UPLOADING TO NETLIFY BLOBS ===');
+      console.log('blob_key:', blobKey);
+      console.log('File size:', buffer.byteLength, 'bytes');
+      console.log('Content type:', file.type);
+      
+      try {
+        const { getStore } = await import('@netlify/blobs');
+        const store = getStore('temple-photos');
+        console.log('Store obtained');
+        
+        await store.set(blobKey, buffer, {
+          metadata: { contentType: file.type }
+        });
+        console.log('=== BLOB UPLOADED SUCCESSFULLY ===');
+        console.log('Netlify Blobs: Uploaded file with key:', blobKey);
+      } catch (uploadError) {
+        console.error('=== BLOB UPLOAD FAILED ===');
+        console.error('Error:', uploadError);
+        throw uploadError;
+      }
     } else {
       // In development, save to file system
       const { writeFile } = await import('fs/promises');
