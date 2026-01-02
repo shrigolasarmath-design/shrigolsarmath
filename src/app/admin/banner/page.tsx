@@ -26,19 +26,35 @@ export default function BannerSettingsPage() {
       return;
     }
 
-    setUploading(true);
+    uploadLogoToSupabase(file);
+  };
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      updateBannerLogo(base64String);
+  const uploadLogoToSupabase = async (file: File) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/uploads?bucket=banner_assets&type=logo`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('Upload failed: ' + error.error);
+        setUploading(false);
+        return;
+      }
+
+      const { fileKey } = await response.json();
+      updateBannerLogo(`/api/image?bucket=banner_assets&key=${fileKey}`);
       setUploading(false);
-    };
-    reader.onerror = () => {
-      alert('Failed to upload image');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Upload failed. Please try again.');
       setUploading(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   const handleRemoveLogo = () => {
@@ -59,17 +75,35 @@ export default function BannerSettingsPage() {
       alert('Image size should be less than 5MB');
       return;
     }
+    uploadBannerImageToSupabase(file);
+  };
+
+  const uploadBannerImageToSupabase = async (file: File) => {
     setImageUploading(true);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      updateBannerImage(reader.result as string);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/uploads?bucket=banner_assets&type=banner`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('Upload failed: ' + error.error);
+        setImageUploading(false);
+        return;
+      }
+
+      const { fileKey } = await response.json();
+      updateBannerImage(`/api/image?bucket=banner_assets&key=${fileKey}`);
       setImageUploading(false);
-    };
-    reader.onerror = () => {
-      alert('Failed to upload image');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Upload failed. Please try again.');
       setImageUploading(false);
-    };
-    reader.readAsDataURL(file);
+    }
   };
 
   // Banner text update

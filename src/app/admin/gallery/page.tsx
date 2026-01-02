@@ -463,7 +463,6 @@ export default function ManageGalleryPage() {
                           />
                           <div className="p-4 bg-amber-50">
                             <p className="font-semibold text-gray-800 mb-2">{photo.caption}</p>
-                            <p className="text-xs text-gray-600 mb-3">Uploaded: {photo.uploadedAt}</p>
                             <button
                               onClick={() => handleDeletePhoto(photo.id)}
                               className="w-full bg-red-500 text-white py-2 rounded font-bold hover:bg-red-600 transition-colors"

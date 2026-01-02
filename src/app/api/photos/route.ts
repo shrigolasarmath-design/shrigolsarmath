@@ -1,10 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const supabase = supabaseUrl && supabaseKey 
-  ? createClient(supabaseUrl, supabaseKey)
+// Use service role key for server-side operations (storage uploads, etc)
+const supabaseAdmin = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
+// Use anon key for client-side safe queries
+const supabase = supabaseUrl && supabaseAnonKey 
+  ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
 interface PhotoData {
@@ -40,11 +47,11 @@ export async function GET() {
       return Response.json([]);
     }
 
-    // Format photos for frontend - always use blob_key endpoint
+    // Format photos for frontend
     const formattedPhotos = photos.map(photo => {
-      // Check if photo has blob_key (should have one)
-      if (!photo.blob_key) {
-        console.warn(`Photo ${photo.id} missing blob_key - needs to be re-uploaded`);
+      // Check if photo has file_key (should have one)
+      if (!photo.file_key) {
+        console.warn(`Photo ${photo.id} missing file_key - needs to be re-uploaded`);
         return {
           id: photo.id,
           imageUrl: '/placeholder.jpg',
@@ -70,7 +77,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  if (!supabase) {
+  if (!supabaseAdmin || !supabase) {
     return Response.json({ error: 'Supabase not configured' }, { status: 500 });
   }
 
@@ -93,51 +100,43 @@ export async function POST(request: Request) {
     const photoId = Date.now().toString();
     const buffer = await file.arrayBuffer();
 
-    // Create blob_key for storing the file
-    const blobKey = `${photoId}.${fileExt}`;
+    // Create file_key for storing the file
+    const fileKey = `${photoId}.${fileExt}`;
+    const bucketName = 'album_images';
 
-    if (process.env.NODE_ENV === 'production') {
-      // In production, use Netlify Blobs
-      console.log('=== UPLOADING TO NETLIFY BLOBS ===');
-      console.log('blob_key:', blobKey);
-      console.log('File size:', buffer.byteLength, 'bytes');
-      console.log('Content type:', file.type);
-      
-      try {
-        const { getStore } = await import('@netlify/blobs');
-        const store = getStore('temple-photos');
-        console.log('Store obtained');
-        
-        await store.set(blobKey, buffer, {
-          metadata: { contentType: file.type }
+    // Always upload to Supabase bucket (both dev and production)
+    console.log('=== UPLOADING TO SUPABASE STORAGE ===');
+    console.log('bucket:', bucketName);
+    console.log('file_key:', fileKey);
+    console.log('File size:', buffer.byteLength, 'bytes');
+    console.log('Content type:', file.type);
+
+    try {
+      // Use service role key for storage uploads (bypasses RLS)
+      const { data, error } = await supabaseAdmin.storage
+        .from(bucketName)
+        .upload(fileKey, buffer, {
+          contentType: file.type,
         });
-        console.log('=== BLOB UPLOADED SUCCESSFULLY ===');
-        console.log('Netlify Blobs: Uploaded file with key:', blobKey);
-      } catch (uploadError) {
-        console.error('=== BLOB UPLOAD FAILED ===');
-        console.error('Error:', uploadError);
-        throw uploadError;
-      }
-    } else {
-      // In development, save to file system
-      const { writeFile } = await import('fs/promises');
-      const { join } = await import('path');
-      const { existsSync, mkdirSync } = await import('fs');
 
-      const STORAGE_DIR = join(process.cwd(), 'public/uploads/photos');
-      if (!existsSync(STORAGE_DIR)) {
-        mkdirSync(STORAGE_DIR, { recursive: true });
+      if (error) {
+        console.error('=== SUPABASE UPLOAD FAILED ===');
+        console.error('Error:', error);
+        throw error;
       }
 
-      const imagePath = join(STORAGE_DIR, blobKey);
-      await writeFile(imagePath, Buffer.from(buffer));
-      console.log('Dev: Saved file to:', imagePath);
+      console.log('=== SUPABASE UPLOAD SUCCESSFUL ===');
+      console.log('Uploaded file with key:', fileKey);
+    } catch (uploadError) {
+      console.error('=== SUPABASE UPLOAD ERROR ===');
+      console.error('Error:', uploadError);
+      throw uploadError;
     }
 
-    // Insert photo record into database with blob_key
+    // Insert photo record into database with file_key
     const insertData: any = {
       album_id: parseInt(albumId),
-      blob_key: blobKey,
+      file_key: fileKey,
       uploaded_at: new Date().toISOString(),
       caption: caption || 'Untitled'
     };
@@ -156,10 +155,10 @@ export async function POST(request: Request) {
       return Response.json({ error: error?.message || 'Failed to save photo' }, { status: 500 });
     }
 
-    // Verify blob_key is present
-    if (!photo.blob_key) {
-      console.error('POST /api/photos - blob_key missing after insert:', photo);
-      return Response.json({ error: 'Photo upload failed: blob_key not stored in database.' }, { status: 500 });
+    // Verify file_key is present
+    if (!photo.file_key) {
+      console.error('POST /api/photos - file_key missing after insert:', photo);
+      return Response.json({ error: 'Photo upload failed: file_key not stored in database.' }, { status: 500 });
     }
 
     return Response.json({
@@ -175,22 +174,23 @@ export async function POST(request: Request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Photo upload error:', error);
-    return Response.json({ error: 'Upload failed: ' + (error as Error).message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return Response.json({ error: 'Upload failed: ' + errorMessage }, { status: 500 });
   }
 }
 
 export async function DELETE(request: Request) {
-  if (!supabase) {
+  if (!supabaseAdmin || !supabase) {
     return Response.json({ error: 'Supabase not configured' }, { status: 500 });
   }
 
   try {
     const { photoId } = await request.json();
 
-    // Get photo to find blob_key
+    // Get photo to find file_key
     const { data: photo, error: fetchError } = await supabase
       .from('photos')
-      .select('blob_key')
+      .select('file_key')
       .eq('id', photoId)
       .single();
 
@@ -199,68 +199,28 @@ export async function DELETE(request: Request) {
       return Response.json({ error: 'Photo not found' }, { status: 404 });
     }
 
-    console.log('Deleting photo:', photoId, 'with blob_key:', photo.blob_key);
+    console.log('Deleting photo:', photoId, 'with file_key:', photo.file_key);
 
-    // Delete from blob storage first
-    if (photo.blob_key) {
-      if (process.env.NODE_ENV === 'production') {
-        try {
-          console.log('=== DELETING BLOB ===');
-          console.log('Original blob_key from database:', photo.blob_key);
-          
-          const { getStore } = await import('@netlify/blobs');
-          const store = getStore('temple-photos');
-          
-          let deleted = false;
-          let successKey: string | null = null;
-          
-          // Try different key formats
-          const keyFormats = [
-            photo.blob_key,                                    // Direct: 1766916899764.jpeg
-            `temple-photos/${photo.blob_key}`,                 // With folder: temple-photos/1766916899764.jpeg
-            `temple-photos/photo-${photo.blob_key.split('.')[0]}`, // With photo- prefix: temple-photos/photo-1766916899764
-            `photo-${photo.blob_key.split('.')[0]}`,          // Just photo- prefix: photo-1766916899764
-          ];
-          
-          for (const key of keyFormats) {
-            try {
-              console.log('Attempting to delete with key:', key);
-              await store.delete(key);
-              console.log('✓ Successfully deleted blob with key:', key);
-              successKey = key;
-              deleted = true;
-              break;
-            } catch (err) {
-              console.warn('✗ Delete failed for key:', key, 'Error:', err instanceof Error ? err.message : String(err));
-              continue;
-            }
-          }
-          
-          if (!deleted) {
-            console.warn('=== BLOB DELETION FAILED ===');
-            console.warn('Could not delete blob with any key format');
-            console.warn('Attempted keys:', keyFormats);
-            // Continue with database deletion even if blob deletion fails
-          } else {
-            console.log('=== BLOB DELETED SUCCESSFULLY ===');
-            console.log('Deleted with key:', successKey);
-          }
-        } catch (blobError) {
-          console.error('Unexpected error during blob deletion:', blobError);
+    // Delete from Supabase storage using service role key
+    if (photo.file_key) {
+      try {
+        console.log('=== DELETING FROM SUPABASE STORAGE ===');
+        console.log('bucket: album_images');
+        console.log('file_key:', photo.file_key);
+
+        const { error } = await supabaseAdmin.storage
+          .from('album_images')
+          .remove([photo.file_key]);
+
+        if (error) {
+          console.warn('Failed to delete file from Supabase:', error);
           // Continue with database deletion even if blob deletion fails
+        } else {
+          console.log('Deleted file from Supabase:', photo.file_key);
         }
-      } else {
-        // In development, delete from filesystem
-        try {
-          const { unlink } = await import('fs/promises');
-          const { join } = await import('path');
-          const imagePath = join(process.cwd(), 'public/uploads/photos', photo.blob_key);
-          await unlink(imagePath);
-          console.log('Deleted file from filesystem:', imagePath);
-        } catch (fsError) {
-          console.warn('Failed to delete file from filesystem:', fsError);
-          // Continue with database deletion even if file deletion fails
-        }
+      } catch (blobError) {
+        console.error('Unexpected error during Supabase file deletion:', blobError);
+        // Continue with database deletion even if file deletion fails
       }
     }
 

@@ -8,15 +8,40 @@ export default function BackgroundsAdmin() {
   const [uploading, setUploading] = useState<string | null>(null);
 
   const handleImageUpload = async (section: keyof typeof sectionBackgrounds, file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file');
+      return;
+    }
+
+    uploadBackgroundToSupabase(section, file);
+  };
+
+  const uploadBackgroundToSupabase = async (section: keyof typeof sectionBackgrounds, file: File) => {
     setUploading(section);
-    
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64String = reader.result as string;
-      updateSectionBackground(section, base64String);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/uploads?bucket=section_backgrounds&type=${section}`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('Upload failed: ' + error.error);
+        setUploading(null);
+        return;
+      }
+
+      const { fileKey } = await response.json();
+      updateSectionBackground(section, `/api/image?bucket=section_backgrounds&key=${fileKey}`);
       setUploading(null);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Upload failed. Please try again.');
+      setUploading(null);
+    }
   };
 
   const sections = [

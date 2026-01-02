@@ -27,17 +27,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   const login = async (phone: string, otp: string) => {
-    // TODO: Integrate with OTP backend
-    if (otp === '123456') { // Demo OTP
-      setUser({
-        id: phone,
-        name: 'User',
-        phone,
-        email: '',
-        transactions: [],
-      });
-      return true;
-    }
     return false;
   };
 

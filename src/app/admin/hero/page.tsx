@@ -11,6 +11,7 @@ export default function ManageHeroPage() {
   const router = useRouter();
   const [dragActive, setDragActive] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -53,25 +54,51 @@ export default function ManageHeroPage() {
   const processFiles = (files: FileList) => {
     Array.from(files).forEach((file) => {
       if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const imageData = e.target?.result as string;
-          const newPhoto = {
-            id: Date.now().toString(),
-            imageData: imageData,
-            uploadedAt: new Date().toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            }),
-          };
-          addHeroPhoto(newPhoto);
-        };
-        reader.readAsDataURL(file);
+        uploadToSupabase(file);
       } else {
         alert(`${file.name} is not an image. Please upload image files only.`);
       }
     });
+  };
+
+  const uploadToSupabase = async (file: File) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/uploads?bucket=hero_images&type=hero`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert('Upload failed: ' + error.error);
+        setUploading(false);
+        return;
+      }
+
+      const { fileKey } = await response.json();
+
+      const newPhoto = {
+        id: Date.now().toString(),
+        fileKey: fileKey,
+        imageUrl: `/api/image?bucket=hero_images&key=${fileKey}`,
+        uploadedAt: new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        }),
+        imageData: '', // Set a default empty string for imageData
+      };
+      addHeroPhoto(newPhoto);
+      setUploading(false);
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('Upload failed. Please try again.');
+      setUploading(false);
+    }
   };
 
   if (!mounted) {
@@ -117,14 +144,15 @@ export default function ManageHeroPage() {
             <div className="text-6xl mb-4">📸</div>
             <p className="text-xl font-bold text-amber-900 mb-2">Drag & drop hero banner photos here</p>
             <p className="text-gray-700 mb-4">or</p>
-            <label className="inline-block bg-orange-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-orange-700 transition cursor-pointer">
-              Browse Files
+            <label className="inline-block bg-orange-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-orange-700 transition cursor-pointer disabled:opacity-50" style={{ pointerEvents: uploading ? 'none' : 'auto' }}>
+              {uploading ? 'Uploading...' : 'Browse Files'}
               <input
                 type="file"
                 multiple
                 onChange={handleFileInput}
                 accept="image/jpeg,image/png,image/webp,image/gif"
                 className="hidden"
+                disabled={uploading}
               />
             </label>
             <p className="text-sm text-gray-600 mt-4">Recommended size: 1920 x 600 pixels. Supported formats: JPG, PNG, WebP, GIF</p>
@@ -143,8 +171,7 @@ export default function ManageHeroPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {heroPhotos.map((photo) => (
-                  <div
-                    key={photo.id}
+                  <div key={photo.id}
                     className="bg-white rounded-lg shadow-md border-2 border-orange-200 overflow-hidden hover:shadow-lg transition"
                   >
                     <div className="relative w-full h-40 bg-gray-200">

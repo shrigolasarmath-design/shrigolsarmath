@@ -21,7 +21,7 @@ export default function AdminPanel() {
 
   useEffect(() => {
     if (mounted && !isLoggedIn) {
-      router.push('/login');
+      router.push('/admin/login');
     }
   }, [mounted, isLoggedIn, router]);
 

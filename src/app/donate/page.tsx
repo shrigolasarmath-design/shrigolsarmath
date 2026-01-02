@@ -10,6 +10,8 @@ export default function DonatePage() {
   const [amount, setAmount] = useState('');
   const [donorName, setDonorName] = useState('');
   const [email, setEmail] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [address, setAddress] = useState('');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
@@ -23,7 +25,7 @@ export default function DonatePage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!amount || !donorName || !email) {
+    if (!amount || !donorName || !email || !mobileNumber || !address) {
       alert('Please fill in all required fields');
       return;
     }
@@ -33,6 +35,8 @@ export default function DonatePage() {
       amount,
       donorName,
       email,
+      mobileNumber,
+      address,
       message,
     });
 
@@ -41,6 +45,8 @@ export default function DonatePage() {
       setAmount('');
       setDonorName('');
       setEmail('');
+      setMobileNumber('');
+      setAddress('');
       setMessage('');
       setSubmitted(false);
     }, 3000);
@@ -109,6 +115,36 @@ export default function DonatePage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
+                  className="w-full px-5 py-3 border-2 border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none bg-yellow-50 text-gray-800 font-medium"
+                />
+              </div>
+
+              {/* Mobile Number */}
+              <div>
+                <label htmlFor="mobile" className="block text-lg font-semibold text-amber-900 mb-2">
+                  📱 Mobile Number
+                </label>
+                <input
+                  id="mobile"
+                  type="tel"
+                  value={mobileNumber}
+                  onChange={(e) => setMobileNumber(e.target.value)}
+                  placeholder="Enter your 10-digit mobile number"
+                  className="w-full px-5 py-3 border-2 border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none bg-yellow-50 text-gray-800 font-medium"
+                />
+              </div>
+
+              {/* Address */}
+              <div>
+                <label htmlFor="address" className="block text-lg font-semibold text-amber-900 mb-2">
+                  🏠 Address
+                </label>
+                <textarea
+                  id="address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="Enter your full address (Street, City, State, Zip)"
+                  rows={3}
                   className="w-full px-5 py-3 border-2 border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent outline-none bg-yellow-50 text-gray-800 font-medium"
                 />
               </div>

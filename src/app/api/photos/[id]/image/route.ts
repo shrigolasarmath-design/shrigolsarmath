@@ -1,17 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-const supabase = supabaseUrl && supabaseKey 
-  ? createClient(supabaseUrl, supabaseKey)
+// Use service role key for server-side storage access (bypass RLS)
+const supabaseAdmin = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null;
+
+// Use anon key for database queries
+const supabase = supabaseUrl && supabaseAnonKey 
+  ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  if (!supabase) {
+  if (!supabase || !supabaseAdmin) {
     return new Response('Supabase not configured', { status: 500 });
   }
 
@@ -25,7 +32,7 @@ export async function GET(
     // Get photo metadata from database
     const { data: photo, error } = await supabase
       .from('photos')
-      .select('blob_key, file_path')
+      .select('file_key')
       .eq('id', photoId)
       .single();
 
@@ -34,111 +41,67 @@ export async function GET(
       return new Response('Photo not found', { status: 404 });
     }
 
-    console.log('Photo found:', { blob_key: photo.blob_key, file_path: photo.file_path });
+    console.log('Photo found:', { file_key: photo.file_key });
 
-    // Get blob_key or extract from file_path if not available
-    let filename: string | undefined = photo.blob_key;
-    
-    if (!filename && photo.file_path) {
-      // Extract filename from path like "/uploads/photos/1766858625550.png"
-      filename = photo.file_path.split('/').pop();
-      console.log('Extracted filename from file_path:', filename);
-    }
+    // Get file_key
+    const filename: string | undefined = photo.file_key;
 
     if (!filename) {
-      console.error('Photo missing both blob_key and file_path - Photo ID:', photoId);
+      console.error('Photo missing file_key - Photo ID:', photoId);
       return new Response('Photo file not found', { status: 400 });
     }
 
     console.log('Using filename:', filename);
 
-    if (process.env.NODE_ENV === 'production') {
-      // Retrieve from Netlify Blobs only
-      console.log('=== PRODUCTION MODE - NETLIFY BLOBS ===');
-      console.log('Photo ID:', photoId);
-      console.log('Looking for blob_key:', filename);
-      
-      try {
-        console.log('Importing @netlify/blobs...');
-        const { getStore } = await import('@netlify/blobs');
-        console.log('@netlify/blobs imported successfully');
-        
-        console.log('Getting store: temple-photos');
-        const store = getStore('temple-photos');
-        console.log('Store obtained');
-        
-        let data: ArrayBuffer | null = null;
-        let successKey: string | null = null;
-        
-        // Try different key formats
-        const keyFormats = [
-          filename,                                    // Direct: 1766916899764.jpeg
-          `temple-photos/${filename}`,                 // With folder: temple-photos/1766916899764.jpeg
-          `temple-photos/photo-${filename.split('.')[0]}`, // With photo- prefix: temple-photos/photo-1766916899764
-          `photo-${filename.split('.')[0]}`,          // Just photo- prefix: photo-1766916899764
-        ];
-        
-        for (const key of keyFormats) {
-          try {
-            console.log('Trying key format:', key);
-            data = await store.get(key);
-            if (data) {
-              successKey = key;
-              console.log('✓ Successfully retrieved blob with key:', key);
-              break;
-            }
-          } catch (err) {
-            console.log('✗ Key format failed:', key, 'Error:', err instanceof Error ? err.message : String(err));
-            continue;
-          }
-        }
-        
-        if (!data) {
-          console.error('=== BLOB NOT FOUND ===');
-          console.error('Blob not found with any key format');
-          console.error('Attempted keys:', keyFormats);
-          return new Response(JSON.stringify({ 
-            error: 'Blob not found', 
-            blobKey: filename,
-            attemptedKeys: keyFormats 
-          }), { status: 404, headers: { 'Content-Type': 'application/json' } });
-        }
-        
-        console.log('Blob found! Size:', (data as ArrayBuffer).byteLength, 'bytes', 'Key used:', successKey);
+    // Always fetch from Supabase bucket
+    console.log('=== FETCHING FROM SUPABASE STORAGE ===');
+    console.log('bucket: album_images');
+    console.log('Photo ID:', photoId);
+    console.log('Looking for file_key:', filename);
 
-        // Determine content type from filename
-        const contentType = filename.endsWith('.png') 
-          ? 'image/png'
-          : filename.endsWith('.jpg') || filename.endsWith('.jpeg')
-          ? 'image/jpeg'
-          : filename.endsWith('.gif')
-          ? 'image/gif'
-          : filename.endsWith('.webp')
-          ? 'image/webp'
-          : 'image/jpeg';
+    try {
+      // Use service role key to bypass RLS on storage bucket
+      const { data, error } = await supabaseAdmin.storage
+        .from('album_images')
+        .download(filename);
 
-        console.log('Returning blob with content-type:', contentType);
-        return new Response(data, {
-          headers:
-           {
-            'Content-Type': contentType,
-            'Cache-Control': 'public, max-age=31536000, immutable'
-          }
-        });
-      } catch (blobError) {
-        console.error('=== NETLIFY BLOBS EXCEPTION ===');
-        console.error('Error type:', blobError instanceof Error ? blobError.constructor.name : typeof blobError);
-        console.error('Error message:', blobError instanceof Error ? blobError.message : String(blobError));
-        console.error('Full error:', blobError);
-        return new Response(JSON.stringify({ 
-          error: 'Netlify Blobs Error', 
-          message: blobError instanceof Error ? blobError.message : String(blobError),
-          blobKey: filename
-        }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      if (error || !data) {
+        console.error('=== SUPABASE FETCH FAILED ===');
+        console.error('Error:', error);
+        return new Response(JSON.stringify({
+          error: 'File not found',
+          fileKey: filename,
+        }), { status: 404, headers: { 'Content-Type': 'application/json' } });
       }
-    } else {
-      // In development, serve from public directory
-      return Response.redirect(`/uploads/photos/${filename}`, 301);
+
+      console.log('File found! Size:', data.size, 'bytes');
+
+      // Determine content type from filename
+      const contentType = filename.endsWith('.png')
+        ? 'image/png'
+        : filename.endsWith('.jpg') || filename.endsWith('.jpeg')
+        ? 'image/jpeg'
+        : filename.endsWith('.gif')
+        ? 'image/gif'
+        : filename.endsWith('.webp')
+        ? 'image/webp'
+        : 'image/jpeg';
+
+      console.log('Returning file with content-type:', contentType);
+      return new Response(data, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=31536000, immutable',
+        },
+      });
+    } catch (blobError) {
+      console.error('=== SUPABASE FETCH ERROR ===');
+      console.error('Error:', blobError);
+      return new Response(JSON.stringify({
+        error: 'Supabase Fetch Error',
+        message: blobError instanceof Error ? blobError.message : String(blobError),
+        fileKey: filename,
+      }), { status: 500, headers: { 'Content-Type': 'application/json' } });
     }
   } catch (e) {
     console.error('Unexpected error:', e);

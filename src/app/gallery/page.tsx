@@ -92,7 +92,6 @@ export default function GalleryPage() {
                     </div>
                     <div className="p-6 bg-gradient-to-b from-white to-yellow-50">
                       <p className="text-gray-800 mb-3 font-medium text-lg group-hover:text-orange-700 transition-colors line-clamp-2">{photo.caption}</p>
-                      <p className="text-sm text-amber-600 font-semibold">{photo.uploadedAt}</p>
                     </div>
                   </div>
                 ))}
@@ -126,7 +125,6 @@ export default function GalleryPage() {
               </div>
               <div className="p-8 bg-gradient-to-b from-white to-yellow-50">
                 <p className="text-gray-800 mb-3 font-medium text-xl">{selectedPhoto.caption}</p>
-                <p className="text-sm text-amber-600 font-semibold">Uploaded: {selectedPhoto.uploadedAt}</p>
               </div>
             </div>
           </div>

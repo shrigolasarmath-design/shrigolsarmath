@@ -36,8 +36,6 @@ interface AuthContextType {
   logout: () => void;
   logoutUser: () => void;
   setLoggedIn: (value: boolean) => void;
-  sendOtp: (phone: string) => Promise<boolean>;
-  verifyOtp: (phone: string, otp: string) => Promise<boolean>;
 }
 
 
@@ -88,7 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
       if (isPasswordValid) {
-        return true; // Do not redirect yet; wait for OTP verification
+        setIsLoggedInState(true);
+        localStorage.setItem('adminAuth', 'true');
+        console.log('Admin logged in successfully');
+        return true;
       }
 
       console.error('Invalid password.');
@@ -156,18 +157,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const sendOtp = async () => {
-    console.log('OTP functionality is disabled.');
-    return true;
-  };
-
-  const verifyOtp = async () => {
-    console.log('OTP functionality is disabled.');
-    return true;
-  };
-
   return (
-    <AuthContext.Provider value={{ isLoggedIn, authLoaded: mounted, isUserLoggedIn, login, loginUser, logout, logoutUser, setLoggedIn, sendOtp, verifyOtp }}>
+    <AuthContext.Provider value={{ isLoggedIn, authLoaded: mounted, isUserLoggedIn, login, loginUser, logout, logoutUser, setLoggedIn }}>
       {children}
     </AuthContext.Provider>
   );
