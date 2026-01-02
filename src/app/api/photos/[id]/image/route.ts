@@ -67,18 +67,44 @@ export async function GET(
         const store = getStore('temple-photos');
         console.log('Store obtained');
         
-        console.log('Calling store.get() with key:', filename);
-        const data = await store.get(filename);
-        console.log('store.get() returned, data type:', typeof data, 'data exists:', !!data);
+        let data: ArrayBuffer | null = null;
+        let successKey: string | null = null;
+        
+        // Try different key formats
+        const keyFormats = [
+          filename,                                    // Direct: 1766916899764.jpeg
+          `temple-photos/${filename}`,                 // With folder: temple-photos/1766916899764.jpeg
+          `temple-photos/photo-${filename.split('.')[0]}`, // With photo- prefix: temple-photos/photo-1766916899764
+          `photo-${filename.split('.')[0]}`,          // Just photo- prefix: photo-1766916899764
+        ];
+        
+        for (const key of keyFormats) {
+          try {
+            console.log('Trying key format:', key);
+            data = await store.get(key);
+            if (data) {
+              successKey = key;
+              console.log('✓ Successfully retrieved blob with key:', key);
+              break;
+            }
+          } catch (err) {
+            console.log('✗ Key format failed:', key, 'Error:', err instanceof Error ? err.message : String(err));
+            continue;
+          }
+        }
         
         if (!data) {
           console.error('=== BLOB NOT FOUND ===');
-          console.error('Blob key that failed:', filename);
-          console.error('Available keys in store would need to be listed separately');
-          return new Response(JSON.stringify({ error: 'Blob not found', blobKey: filename }), { status: 404, headers: { 'Content-Type': 'application/json' } });
+          console.error('Blob not found with any key format');
+          console.error('Attempted keys:', keyFormats);
+          return new Response(JSON.stringify({ 
+            error: 'Blob not found', 
+            blobKey: filename,
+            attemptedKeys: keyFormats 
+          }), { status: 404, headers: { 'Content-Type': 'application/json' } });
         }
         
-        console.log('Blob found! Size:', (data as ArrayBuffer).byteLength, 'bytes');
+        console.log('Blob found! Size:', (data as ArrayBuffer).byteLength, 'bytes', 'Key used:', successKey);
 
         // Determine content type from filename
         const contentType = filename.endsWith('.png') 
@@ -93,7 +119,8 @@ export async function GET(
 
         console.log('Returning blob with content-type:', contentType);
         return new Response(data, {
-          headers: {
+          headers:
+           {
             'Content-Type': contentType,
             'Cache-Control': 'public, max-age=31536000, immutable'
           }
@@ -113,4 +140,8 @@ export async function GET(
       // In development, serve from public directory
       return Response.redirect(`/uploads/photos/${filename}`, 301);
     }
+  } catch (e) {
+    console.error('Unexpected error:', e);
+    return new Response('Internal Server Error', { status: 500 });
+  }
 }

@@ -205,12 +205,48 @@ export async function DELETE(request: Request) {
     if (photo.blob_key) {
       if (process.env.NODE_ENV === 'production') {
         try {
+          console.log('=== DELETING BLOB ===');
+          console.log('Original blob_key from database:', photo.blob_key);
+          
           const { getStore } = await import('@netlify/blobs');
           const store = getStore('temple-photos');
-          await store.delete(photo.blob_key);
-          console.log('Deleted blob from Netlify Blobs:', photo.blob_key);
+          
+          let deleted = false;
+          let successKey: string | null = null;
+          
+          // Try different key formats
+          const keyFormats = [
+            photo.blob_key,                                    // Direct: 1766916899764.jpeg
+            `temple-photos/${photo.blob_key}`,                 // With folder: temple-photos/1766916899764.jpeg
+            `temple-photos/photo-${photo.blob_key.split('.')[0]}`, // With photo- prefix: temple-photos/photo-1766916899764
+            `photo-${photo.blob_key.split('.')[0]}`,          // Just photo- prefix: photo-1766916899764
+          ];
+          
+          for (const key of keyFormats) {
+            try {
+              console.log('Attempting to delete with key:', key);
+              await store.delete(key);
+              console.log('✓ Successfully deleted blob with key:', key);
+              successKey = key;
+              deleted = true;
+              break;
+            } catch (err) {
+              console.warn('✗ Delete failed for key:', key, 'Error:', err instanceof Error ? err.message : String(err));
+              continue;
+            }
+          }
+          
+          if (!deleted) {
+            console.warn('=== BLOB DELETION FAILED ===');
+            console.warn('Could not delete blob with any key format');
+            console.warn('Attempted keys:', keyFormats);
+            // Continue with database deletion even if blob deletion fails
+          } else {
+            console.log('=== BLOB DELETED SUCCESSFULLY ===');
+            console.log('Deleted with key:', successKey);
+          }
         } catch (blobError) {
-          console.warn('Failed to delete blob from Netlify Blobs:', blobError);
+          console.error('Unexpected error during blob deletion:', blobError);
           // Continue with database deletion even if blob deletion fails
         }
       } else {
