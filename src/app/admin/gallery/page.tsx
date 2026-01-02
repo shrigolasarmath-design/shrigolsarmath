@@ -34,7 +34,7 @@ export default function ManageGalleryPage() {
           }));
           if (albumsWithPhotos.length === 0) {
             // Create default album if none exist
-            const createRes = await fetch('/api/albums', {
+            const createRes = await fetch('./api/albums', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: 'All Photos' })
